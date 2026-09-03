@@ -1,0 +1,39 @@
+import { computed, ref } from "vue";
+import { onShow } from "@dcloudio/uni-app";
+import { rewardRules } from "../config/reward";
+import { getRewardState, type RewardCategory } from "../services/reward";
+
+export type CategoryFilter = "all" | RewardCategory;
+export type RangeFilter = "today" | "7days" | "30days" | "all";
+export const categoryTabs = [{ name: "全部", value: "all" }, { name: "签到", value: "signin" }, { name: "任务", value: "task" }, { name: "广告", value: "ad" }, { name: "分享", value: "share" }] as const;
+export const ranges: { label: string; value: RangeFilter }[] = [{ label: "今天", value: "today" }, { label: "近7天", value: "7days" }, { label: "近30天", value: "30days" }, { label: "全部", value: "all" }];
+
+const localDate = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+
+/** 收益页筛选、汇总和增量展示逻辑。 */
+export function useEarningsLedger() {
+  const state = ref(getRewardState());
+  const activeCategory = ref<CategoryFilter>("all");
+  const activeRange = ref<RangeFilter>("today");
+  const visibleCount = ref(15);
+  const categoryIndex = computed(() => categoryTabs.findIndex((item) => item.value === activeCategory.value));
+  const startDate = computed(() => {
+    if (activeRange.value === "all") return "";
+    const date = new Date();
+    if (activeRange.value === "7days") date.setDate(date.getDate() - 6);
+    if (activeRange.value === "30days") date.setDate(date.getDate() - 29);
+    return localDate(date);
+  });
+  const filteredRecords = computed(() => state.value.ledger.filter((item) => (activeCategory.value === "all" || item.category === activeCategory.value) && (!startDate.value || item.date >= startDate.value)));
+  const visibleRecords = computed(() => filteredRecords.value.slice(0, visibleCount.value));
+  const filteredTotal = computed(() => filteredRecords.value.reduce((sum, item) => sum + item.amount, 0));
+  const hasMore = computed(() => visibleCount.value < filteredRecords.value.length);
+  const cashValue = computed(() => (state.value.balance / rewardRules.coinsPerYuan).toFixed(2));
+  const selectCategory = (item: { value: CategoryFilter }) => { activeCategory.value = item.value; visibleCount.value = 15; };
+  const selectRange = (value: RangeFilter) => { activeRange.value = value; visibleCount.value = 15; };
+  const rangeStyle = (value: RangeFilter) => activeRange.value === value ? { backgroundColor: "#ffc400", borderColor: "#ffc400", color: "#171717" } : { backgroundColor: "#1b1c25", borderColor: "rgba(255,255,255,.06)", color: "#a6a8b2" };
+  const categoryName = (category: RewardCategory) => ({ signin: "签到", task: "任务", ad: "广告", share: "分享" })[category];
+  const showMore = () => { if (hasMore.value) visibleCount.value += 15; };
+  onShow(() => { state.value = getRewardState(); });
+  return { state, activeRange, categoryIndex, filteredRecords, visibleRecords, filteredTotal, hasMore, cashValue, selectCategory, selectRange, rangeStyle, categoryName, showMore };
+}

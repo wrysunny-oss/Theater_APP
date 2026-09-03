@@ -1,0 +1,85 @@
+{
+	"pages": [
+		{
+			"path": "pages/index/index",
+			"style": {
+				"navigationBarTitleText": "幻乐剧场"
+			}
+		},
+		{
+			"path": "pages/tasks/tasks",
+			"style": { "navigationBarTitleText": "福利" }
+		},
+		{
+			"path": "pages/earnings/earnings",
+			"style": { "navigationBarTitleText": "收益" }
+		},
+		{
+			"path": "pages/user/user",
+			"style": { "navigationBarTitleText": "我的" }
+		},
+		{
+			"path": "pages/search/search",
+			"style": { "navigationBarTitleText": "搜索" }
+		},
+		{
+			"path": "pages/notifications/notifications",
+			"style": { "navigationBarTitleText": "通知中心" }
+		},
+		{
+			"path": "pages/settings/settings",
+			"style": { "navigationBarTitleText": "设置" }
+		},
+		{
+			"path": "pages/help/help",
+			"style": { "navigationBarTitleText": "帮助与反馈" }
+		},
+		{
+			"path": "pages/agreement/agreement",
+			"style": { "navigationBarTitleText": "协议与政策" }
+		},
+		{
+			"path": "pages/auth/auth",
+			"style": { "navigationBarTitleText": "登录注册" }
+		},
+		{
+			"path": "pages/profile/profile",
+			"style": { "navigationBarTitleText": "个人资料" }
+		},
+		{
+			"path": "pages/security/security",
+			"style": { "navigationBarTitleText": "账户安全" }
+		},
+		{
+			"path": "pages/share/share",
+			"style": { "navigationBarTitleText": "邀请好友" }
+		},
+		{
+			"path": "pages/history/history",
+			"style": { "navigationBarTitleText": "观看历史" }
+		},
+		{
+			"path": "pages/favorites/favorites",
+			"style": { "navigationBarTitleText": "我的收藏" }
+		},
+		{
+			"path": "pages/player/player",
+			"style": { "navigationBarTitleText": "播放" }
+		}
+	],
+	"easycom": {
+		"autoscan": true,
+		"custom": {
+			"^u--(.*)": "uview-plus/components/u-$1/u-$1.vue",
+			"^up-(.*)": "uview-plus/components/u-$1/u-$1.vue",
+	        "^u-([^-].*)": "uview-plus/components/u-$1/u-$1.vue"
+		}
+	},
+	"globalStyle": {
+		"navigationBarTextStyle": "black",
+		"navigationBarBackgroundColor": "#F8F8F8",
+		"backgroundColor": "#F8F8F8",
+		"navigationStyle": "custom"
+	},
+	"uniIdRouter": {}
+}

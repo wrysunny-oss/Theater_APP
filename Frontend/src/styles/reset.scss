@@ -1,0 +1,86 @@
+@charset "utf-8";
+
+html,
+body,
+page,
+view,
+text,
+image,
+input,
+textarea,
+button,
+swiper,
+swiper-item,
+scroll-view,
+cover-view,
+cover-image,
+rich-text,
+video,
+icon,
+progress,
+checkbox,
+radio,
+switch,
+picker,
+picker-view,
+picker-view-column,
+label,
+form,
+navigator {
+  box-sizing: border-box;
+}
+
+html,
+body,
+page {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  min-height: 100%;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  -webkit-text-size-adjust: 100%;
+  background: var(--app-bg);
+  color: var(--app-text);
+}
+
+body,
+page {
+  line-height: 1.5;
+}
+
+view,
+text,
+input,
+textarea,
+button,
+image,
+scroll-view,
+swiper,
+swiper-item {
+  margin: 0;
+  padding: 0;
+}
+
+button,
+input,
+textarea {
+  border: 0;
+  outline: none;
+  background: transparent;
+  appearance: none;
+}
+
+image {
+  display: block;
+  max-width: 100%;
+}
+
+text {
+  text-decoration: none;
+}
+
+/* 统一基础字号与字体粗细 */
+text {
+  font-size: 28rpx;
+  line-height: 1.45;
+}
