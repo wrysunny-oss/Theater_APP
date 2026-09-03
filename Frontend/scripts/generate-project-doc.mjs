@@ -61,7 +61,8 @@ npm.cmd run generate:docs # 单独刷新项目说明
 - 页面主要使用本地演示数据，尚未接入业务 API。
 - 每日签到和搜索历史保存在设备本地。
 - 播放器已支持沉浸式切集、秒级续播、进度拖动、网络重试和观看任务上报；视频地址仍为演示资源。
-- 支付、广告和提现目前仅提供入口或状态提示。
+- 支付和提现目前仅提供入口或状态提示。
+- 穿山甲广告已建立 Android UTS 插件、Service 和 Hook 骨架，正式 SDK 参数和原生调用尚未配置。
 - \`dist\` 为构建产物，不应直接修改。
 
 ## 目录结构
@@ -72,6 +73,7 @@ npm.cmd run generate:docs # 单独刷新项目说明
 - \`src/composables\`：可复用响应式状态、页面生命周期和业务编排 Hook
 - \`src/types\`：独立领域模型与接口契约
 - \`src/services\`：数据访问层，页面不直接依赖 Mock 或存储结构
+- \`uni_modules/hly-csj-ad\`：Android 穿山甲广告 UTS 桥接模块骨架
 - \`src/config\`：应用级配置
 - \`src/styles\`：全局及页面公共样式
 - \`scripts\`：配置同步与文档生成脚本

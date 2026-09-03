@@ -10,5 +10,6 @@ Composable（Hook）负责可复用的响应式状态和页面生命周期，不
 - `useAccountSecurity`：账户安全编辑状态与校验。
 - `useSmsCountdown`：验证码倒计时。
 - `useConfirmAction`：删除、清空和重置等操作的二次确认。
+- `useRewardedAd`：激励视频加载、展示和异常状态机。
 
 命名统一使用 `useXxx`。Composable 只能依赖 `services`、`types`、配置和 Vue/UniApp API，不依赖页面组件。

@@ -1,0 +1,37 @@
+export type CsjAdSuccess = {
+  placementId: string,
+  completed: boolean,
+  transactionId?: string
+}
+
+export type CsjAdFailure = {
+  code: string,
+  message: string,
+  nativeCode?: number
+}
+
+export type CsjInitializeOptions = {
+  appId: string,
+  debug: boolean,
+  personalizedAds: boolean,
+  success?: () => void,
+  fail?: (error: CsjAdFailure) => void,
+  complete?: () => void
+}
+
+export type CsjRewardedLoadOptions = {
+  placementId: string,
+  userId?: string,
+  rewardName?: string,
+  rewardAmount?: number,
+  success?: () => void,
+  fail?: (error: CsjAdFailure) => void,
+  complete?: () => void
+}
+
+export type CsjRewardedShowOptions = {
+  placementId: string,
+  success?: (result: CsjAdSuccess) => void,
+  fail?: (error: CsjAdFailure) => void,
+  complete?: () => void
+}

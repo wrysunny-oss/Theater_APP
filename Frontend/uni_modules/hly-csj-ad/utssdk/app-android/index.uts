@@ -1,0 +1,32 @@
+import { CsjAdFailure, CsjInitializeOptions, CsjRewardedLoadOptions, CsjRewardedShowOptions } from "../interface.uts";
+
+const unavailable = (): CsjAdFailure => ({
+  code: "CSJ_SDK_NOT_LINKED",
+  message: "请先在 config.json 配置穿山甲 SDK 依赖并完成原生实现"
+});
+
+/** SDK 初始化骨架。接入依赖后在此创建并初始化穿山甲 SDK。 */
+export function initialize(options: CsjInitializeOptions): void {
+  options.fail?.(unavailable());
+  options.complete?.();
+}
+
+/** 激励视频预加载骨架。原生实现需持有广告对象，避免展示前被回收。 */
+export function loadRewarded(options: CsjRewardedLoadOptions): void {
+  options.fail?.(unavailable());
+  options.complete?.();
+}
+
+/** 激励视频展示骨架。只有完整观看回调才可返回 completed=true。 */
+export function showRewarded(options: CsjRewardedShowOptions): void {
+  options.fail?.(unavailable());
+  options.complete?.();
+}
+
+export function setPersonalizedAdsEnabled(enabled: boolean): void {
+  // TODO: 将用户选择同步到穿山甲 SDK 的个性化广告配置。
+}
+
+export function dispose(): void {
+  // TODO: 释放广告对象及原生监听器。
+}

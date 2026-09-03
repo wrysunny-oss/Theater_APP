@@ -1,0 +1,7 @@
+{
+  "id": "hly-csj-ad",
+  "displayName": "幻乐剧场穿山甲广告 Android 插件",
+  "version": "0.1.0",
+  "description": "穿山甲 Android SDK 的 UTS 桥接层骨架",
+  "uni_modules": {}
+}
