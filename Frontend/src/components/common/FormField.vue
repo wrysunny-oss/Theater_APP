@@ -1,6 +1,6 @@
 <template>
   <view class="mt-22rpx">
-    <text class="mb-11rpx block text-23rpx text-[#b8bac4]">{{ label }}</text>
+    <text class="app-text-secondary mb-11rpx block text-23rpx">{{ label }}</text>
     <slot />
   </view>
 </template>

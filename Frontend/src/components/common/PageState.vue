@@ -3,8 +3,8 @@
   <view class="flex min-h-360rpx flex-col items-center justify-center px-40rpx text-center">
     <up-loading-icon v-if="status === 'loading'" mode="circle" color="#ffc400" size="28" />
     <up-icon v-else :name="status === 'error' ? 'error-circle' : 'file-text'" size="44" color="#696c77" />
-    <text class="mt-22rpx text-25rpx font-600 text-[#b8bac4]">{{ title || defaultTitle }}</text>
-    <text v-if="description" class="mt-10rpx text-22rpx leading-34rpx text-[#9295a1]">{{ description }}</text>
+    <text class="app-text-secondary mt-22rpx text-25rpx font-600">{{ title || defaultTitle }}</text>
+    <text v-if="description" class="app-text-tertiary mt-10rpx text-22rpx leading-34rpx">{{ description }}</text>
     <up-button v-if="status === 'error'" class="mt-24rpx" text="重新加载" size="small" shape="circle" color="#ffc400" @click="$emit('retry')" />
   </view>
 </template>

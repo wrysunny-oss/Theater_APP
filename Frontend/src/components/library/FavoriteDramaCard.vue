@@ -1,6 +1,6 @@
 <template>
   <view class="min-w-0" @click="$emit('open', item)">
-    <view class="relative h-410rpx overflow-hidden rounded-20rpx bg-[#1b1c25]">
+    <view class="app-surface-raised relative h-410rpx overflow-hidden rounded-20rpx">
       <up-image width="100%" height="100%" mode="aspectFill" :src="item.image" />
       <view class="poster-mask absolute inset-x-0 bottom-0 h-150rpx" />
       <view class="absolute bottom-14rpx left-14rpx right-14rpx"><text class="line-clamp-2 block text-25rpx font-700 leading-34rpx">{{ item.title }}</text><text class="mt-5rpx block text-20rpx text-[#bbbcc3]">{{ item.meta }}</text></view>

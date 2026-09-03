@@ -1,5 +1,5 @@
 <template>
-  <scroll-view scroll-y class="h-screen bg-[#090a0f] text-white">
+  <scroll-view scroll-y class="app-page-shell h-screen">
     <view class="px-28rpx pb-150rpx pt-38rpx">
       <text class="block text-40rpx font-800">我的</text>
 

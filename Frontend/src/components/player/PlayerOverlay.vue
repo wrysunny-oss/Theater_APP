@@ -35,6 +35,15 @@
     /></view>
   </view>
 
+  <view v-if="!networkOnline || videoError" class="absolute inset-0 z-25 flex items-center justify-center bg-black/55 px-70rpx">
+    <view class="w-full rounded-24rpx bg-[var(--app-surface)] p-28rpx text-center">
+      <up-icon :name="networkOnline ? 'error-circle' : 'wifi-off'" size="38" color="var(--app-text-muted)" />
+      <text class="mt-18rpx block text-27rpx font-700">{{ networkOnline ? "视频加载失败" : "网络连接已断开" }}</text>
+      <text class="mt-10rpx block text-21rpx text-[var(--app-text-muted)]">{{ networkOnline ? "请稍后重试播放" : "恢复网络后可继续观看" }}</text>
+      <up-button class="mt-22rpx" text="重新加载" size="small" shape="circle" color="var(--app-brand)" @click="$emit('retry')" />
+    </view>
+  </view>
+
   <view
     class="absolute bottom-250rpx right-24rpx z-20 flex flex-col items-center gap-30rpx"
   >
@@ -44,7 +53,7 @@
         ><up-icon
           :name="favorite ? 'star-fill' : 'star'"
           size="31"
-          :color="favorite ? '#ffc400' : '#ffffff'"
+          :color="favorite ? 'var(--app-brand)' : '#ffffff'"
       /></view>
       <text class="mt-7rpx text-20rpx">{{ favorite ? "已收藏" : "收藏" }}</text>
     </view>
@@ -66,7 +75,7 @@
       >{{ description }}</text
     >
     <view class="mt-18rpx flex items-center"
-      ><text class="text-21rpx text-[#ffc400]">第 {{ episode }} 集</text
+      ><text class="text-21rpx text-[var(--app-brand)]">第 {{ episode }} 集</text
       ><text class="ml-12rpx text-20rpx text-white/55"
         >上下滑动切换剧集</text
       ></view
@@ -78,7 +87,7 @@
         :min="0"
         :max="100"
         :step="0.1"
-        active-color="#ffc400"
+        active-color="var(--app-brand)"
         background-color="rgba(255,255,255,0.28)"
         block-color="#ffffff"
         :block-size="14"
@@ -107,6 +116,8 @@ const props = withDefaults(
     playing?: boolean;
     currentTime?: number;
     duration?: number;
+    networkOnline?: boolean;
+    videoError?: boolean;
   }>(),
   {
     title: "",
@@ -117,6 +128,8 @@ const props = withDefaults(
     playing: false,
     currentTime: 0,
     duration: 0,
+    networkOnline: true,
+    videoError: false,
   },
 );
 const emit = defineEmits<{
@@ -124,6 +137,7 @@ const emit = defineEmits<{
   episodes: [];
   favorite: [];
   seek: [seconds: number];
+  retry: [];
 }>();
 const dragging = ref(false);
 const dragProgress = ref(0);

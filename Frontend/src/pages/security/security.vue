@@ -1,5 +1,5 @@
 <template>
-  <scroll-view scroll-y class="h-screen bg-[#090a0f] text-white">
+  <scroll-view scroll-y class="app-page-shell h-screen">
     <AppPageHeader title="账户安全" />
     <view class="px-30rpx pb-50rpx pt-20rpx">
       <text class="mb-14rpx block text-22rpx text-[#9295a1]">登录与验证</text>

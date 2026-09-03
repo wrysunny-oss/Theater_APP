@@ -1,5 +1,5 @@
 <template>
-  <scroll-view scroll-y class="h-screen bg-[#090a0f] text-white">
+  <scroll-view scroll-y class="app-page-shell h-screen">
     <view class="px-28rpx pb-40rpx pt-34rpx">
       <AppPageHeader class="-mx-28rpx -mt-34rpx" title="通知中心"><template #right><text v-if="unreadCount" class="text-23rpx text-[#ffc400]" @click.stop="readAll">全部已读</text></template></AppPageHeader>
       <view class="mt-28rpx flex gap-14rpx"><view v-for="tab in tabs" :key="tab.value" class="rounded-full px-22rpx py-12rpx text-23rpx" :style="tabStyle(tab.value)" @click="activeType = tab.value">{{ tab.label }}</view></view>

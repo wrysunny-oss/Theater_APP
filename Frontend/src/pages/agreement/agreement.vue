@@ -1,5 +1,5 @@
 <template>
-  <scroll-view scroll-y class="h-screen bg-[#090a0f] text-white">
+  <scroll-view scroll-y class="app-page-shell h-screen">
     <view class="px-30rpx pb-50rpx pt-34rpx">
       <AppPageHeader class="-mx-30rpx -mt-34rpx" :title="document.title" />
       <view class="mt-22rpx rounded-18rpx bg-[#15161d] px-20rpx py-16rpx"><text class="text-22rpx text-[#9295a1]">版本 {{ legalMeta.version }} · 更新日期 {{ legalMeta.updatedAt }}</text></view>

@@ -3,7 +3,7 @@
 Composable（Hook）负责可复用的响应式状态和页面生命周期，不渲染 UI：
 
 - `useHomeMovies`：首页筛选、分页和刷新。
-- `useDramaPlayer`：播放器状态机和观看记录上报。
+- `useDramaPlayer`：播放器状态机、秒级续播、网络监听、任务进度和观看记录上报。
 - `useContentCollection`：历史、收藏等集合页的通用操作。
 - `useEarningsLedger`：收益筛选、汇总和增量展示。
 - `useUserDashboard`：个人中心跨服务数据聚合。

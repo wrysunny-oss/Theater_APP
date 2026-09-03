@@ -1,5 +1,5 @@
 <template>
-  <scroll-view scroll-y class="h-screen bg-[#090a0f] text-white"><AppPageHeader :title="mode === 'reset' ? '重置密码' : '登录注册'" /><view class="px-38rpx pb-50rpx pt-32rpx">
+  <scroll-view scroll-y class="app-page-shell h-screen"><AppPageHeader :title="mode === 'reset' ? '重置密码' : '登录注册'" /><view class="px-38rpx pb-50rpx pt-32rpx">
     <view class="text-center"><view class="mx-auto flex h-112rpx w-112rpx items-center justify-center rounded-30rpx bg-[#ffc400]"><text class="text-48rpx font-900 text-[#171717]">幻</text></view><text class="mt-22rpx block text-38rpx font-800">{{ mode === 'reset' ? '找回账号密码' : `欢迎来到${appConfig.name}` }}</text><text class="mt-12rpx block text-23rpx text-[#9295a1]">{{ mode === 'reset' ? '验证手机号后设置新密码' : '登录后使用完整的任务和收益功能' }}</text></view>
     <view v-if="mode !== 'reset'" class="mt-38rpx"><up-tabs :list="authTabs" :current="modeIndex" line-color="#ffc400" active-style="color:#f5f5f7;font-size:30rpx;font-weight:700" inactive-style="color:#9295a1;font-size:27rpx" @click="changeMode" /></view>
     <view v-if="mode === 'login'" class="mt-22rpx flex justify-center gap-16rpx"><view v-for="method in loginMethods" :key="method.value" class="rounded-full px-22rpx py-11rpx text-22rpx" :style="methodStyle(method.value)" @click="loginMethod = method.value">{{ method.label }}</view></view>

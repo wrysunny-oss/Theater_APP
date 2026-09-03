@@ -1,5 +1,5 @@
 <template>
-  <scroll-view scroll-y class="h-screen bg-[#090a0f] text-white">
+  <scroll-view scroll-y class="app-page-shell h-screen">
     <view class="px-28rpx pb-48rpx pt-34rpx">
       <AppPageHeader class="-mx-28rpx -mt-34rpx" title="帮助与反馈" />
       <view class="mt-28rpx rounded-22rpx bg-[#15161d] p-22rpx"><view class="mb-18rpx flex items-center gap-10rpx"><up-icon name="question-circle" size="23" color="#ffc400" /><text class="text-29rpx font-700">常见问题</text></view><up-collapse :border="false"><up-collapse-item v-for="faq in faqs" :key="faq.title" :cell-custom-style="collapseCellStyle"><template #title><text class="text-25rpx font-600 text-[#f5f5f7]">{{ faq.title }}</text></template><template #right-icon><up-icon name="arrow-down" size="16" color="#a6a8b2" /></template><text class="block pb-18rpx text-22rpx leading-36rpx text-[#b8bac4]">{{ faq.content }}</text></up-collapse-item></up-collapse></view>

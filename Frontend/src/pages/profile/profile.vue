@@ -1,5 +1,5 @@
 <template>
-  <scroll-view scroll-y class="h-screen bg-[#090a0f] text-white"><AppPageHeader title="个人资料" /><view class="px-30rpx pb-50rpx pt-24rpx">
+  <scroll-view scroll-y class="app-page-shell h-screen"><AppPageHeader title="个人资料" /><view class="px-30rpx pb-50rpx pt-24rpx">
     <view class="flex flex-col items-center"><view class="flex h-132rpx w-132rpx items-center justify-center overflow-hidden rounded-full border-3rpx border-[#ffc400] bg-[#30280b]" @click="chooseAvatar"><up-image v-if="form.avatar" width="100%" height="100%" shape="circle" mode="aspectFill" :src="form.avatar" /><up-icon v-else name="camera-fill" size="34" color="#ffc400" /></view><text class="mt-14rpx text-22rpx text-[#ffc400]" @click="chooseAvatar">从相册选择或拍照</text></view>
     <view class="mt-32rpx"><text class="mb-10rpx block text-23rpx text-[#b8bac4]">昵称</text><up-input v-model="form.nickname" maxlength="16" placeholder="请输入昵称" color="#f5f5f7" border="surround" /></view>
     <view class="mt-22rpx"><text class="mb-12rpx block text-23rpx text-[#b8bac4]">性别</text><view class="flex gap-14rpx"><view v-for="item in genders" :key="item.value" class="rounded-full px-24rpx py-12rpx text-23rpx" :style="genderStyle(item.value)" @click="form.gender = item.value">{{ item.label }}</view></view></view>

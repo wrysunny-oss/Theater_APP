@@ -1,5 +1,5 @@
 <template>
-  <scroll-view scroll-y class="h-screen bg-[#090a0f] text-white">
+  <scroll-view scroll-y class="app-page-shell h-screen">
     <view class="px-28rpx pb-44rpx pt-34rpx">
       <AppPageHeader class="-mx-28rpx -mt-34rpx" title="设置" />
       <view class="mt-28rpx overflow-hidden rounded-22rpx bg-[#15161d] px-22rpx">

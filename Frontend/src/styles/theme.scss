@@ -1,0 +1,40 @@
+/*
+ * 幻乐剧场全局设计令牌。
+ * 页面与组件只引用语义变量，不直接依赖具体色值，便于统一换肤和调整暗色对比度。
+ */
+:root,
+page {
+  --app-bg: #090a0f;
+  --app-surface: #15161d;
+  --app-surface-raised: #1b1c25;
+  --app-surface-control: #24252d;
+  --app-brand: #ffc400;
+  --app-brand-contrast: #17140a;
+  --app-text-primary: #f5f5f7;
+  --app-text-secondary: #b8bac4;
+  --app-text-muted: #9295a1;
+  --app-text-disabled: #696c77;
+  --app-divider: rgba(255, 255, 255, 0.1);
+  --app-danger: #ff5b5b;
+  --app-success: #19b565;
+  --app-info: #1d9bf0;
+  --app-shadow: rgba(0, 0, 0, 0.22);
+}
+
+page {
+  background: var(--app-bg);
+  color: var(--app-text-primary);
+  --up-main-color: var(--app-text-primary);
+  --up-content-color: var(--app-text-secondary);
+  --up-tips-color: var(--app-text-muted);
+  --up-light-color: var(--app-text-disabled);
+  --up-border-color: var(--app-divider);
+  --up-bg-color: var(--app-bg);
+  --up-card-bg-color: var(--app-surface);
+}
+
+.u-input,
+.u-textarea {
+  background-color: var(--app-surface-raised) !important;
+  border-color: var(--app-divider) !important;
+}

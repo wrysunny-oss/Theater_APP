@@ -1,6 +1,6 @@
 <!-- 首页只有 MovieGrid 内部的 uView List 负责纵向滚动，避免嵌套滚动冲突。 -->
 <template>
-  <view class="h-screen overflow-hidden bg-[#090a0f] text-white">
+  <view class="app-page-shell h-screen overflow-hidden">
     <!-- 独立于虚拟列表的固定层，避免虚拟节点回收后吸顶失效。 -->
     <view class="home-sticky fixed inset-x-0 top-0 z-40 px-28rpx pb-18rpx pt-28rpx">
       <HomeHeader />

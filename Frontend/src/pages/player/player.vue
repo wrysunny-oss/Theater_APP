@@ -10,6 +10,7 @@
           <view class="relative h-full w-full bg-black" @click="togglePlayback">
             <video
               :id="videoId(episode.number)"
+              :key="`${episode.number}-${reloadKey}`"
               class="h-full w-full"
               :src="Math.abs(episode.number - currentEpisode.number) <= 1 ? episode.videoUrl : ''"
               :poster="drama.image"
@@ -38,10 +39,13 @@
         :playing="playing"
         :current-time="watchedSeconds"
         :duration="durationSeconds"
+        :network-online="networkOnline"
+        :video-error="videoError"
         @back="back"
         @episodes="episodePopup = true"
         @favorite="toggleFavorite"
         @seek="seek"
+        @retry="retryVideo"
       />
       <EpisodePicker :show="episodePopup" :episodes="drama.episodes" :current="currentEpisode.number" @close="episodePopup = false" @select="selectEpisode" />
     </template>
@@ -55,5 +59,5 @@ import PlayerOverlay from "../../components/player/PlayerOverlay.vue";
 import { useDramaPlayer } from "../../composables/useDramaPlayer";
 
 const back = () => uni.navigateBack();
-const { drama, currentIndex, currentEpisode, loading, favorite, episodePopup, playing, watchedSeconds, durationSeconds, videoId, load, selectEpisode, playNext, handleEpisodeSwipe, togglePlayback, toggleFavorite, seek, handleTimeUpdate, handleLoadedMetadata, handleVideoError } = useDramaPlayer();
+const { drama, currentIndex, currentEpisode, loading, favorite, episodePopup, playing, watchedSeconds, durationSeconds, networkOnline, videoError, reloadKey, videoId, load, selectEpisode, playNext, handleEpisodeSwipe, togglePlayback, toggleFavorite, seek, retryVideo, handleTimeUpdate, handleLoadedMetadata, handleVideoError } = useDramaPlayer();
 </script>

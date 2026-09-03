@@ -1,12 +1,16 @@
 <template>
   <scroll-view
     scroll-y
-    class="h-screen bg-[#090a0f] text-white"
+    class="app-page-shell h-screen"
     @scrolltolower="showMore"
   >
     <view class="px-28rpx pb-150rpx pt-38rpx">
       <text class="block text-40rpx font-800">我的收益</text>
-      <EarningsBalanceCard :balance="state.balance" :cash-value="cashValue" @withdraw="coming" />
+      <EarningsBalanceCard
+        :balance="state.balance"
+        :cash-value="cashValue"
+        @withdraw="coming"
+      />
       <EarningsStats :total="filteredTotal" :count="filteredRecords.length" />
       <view class="mt-30rpx"
         ><up-tabs
@@ -31,8 +35,17 @@
         ><text class="text-30rpx font-700">金币明细</text
         ><text class="text-22rpx text-[#9295a1]">最近100条</text></view
       >
-      <EarningsLedgerList v-if="visibleRecords.length" :records="visibleRecords" :has-more="hasMore" />
-      <PageState v-else status="empty" title="暂无金币记录" description="完成任务并领取奖励后，明细会显示在这里" />
+      <EarningsLedgerList
+        v-if="visibleRecords.length"
+        :records="visibleRecords"
+        :has-more="hasMore"
+      />
+      <PageState
+        v-else
+        status="empty"
+        title="暂无金币记录"
+        description="完成任务并领取奖励后，明细会显示在这里"
+      />
       <RewardRulesCard :rules="ruleItems" />
     </view>
     <BottomNav current="earn" />
@@ -47,9 +60,28 @@ import EarningsStats from "../../components/earnings/EarningsStats.vue";
 import EarningsLedgerList from "../../components/earnings/EarningsLedgerList.vue";
 import PageState from "../../components/common/PageState.vue";
 import { rewardRules } from "../../config/reward";
-import { categoryTabs, ranges, useEarningsLedger, type CategoryFilter, type RangeFilter } from "../../composables/useEarningsLedger";
+import {
+  categoryTabs,
+  ranges,
+  useEarningsLedger,
+  type CategoryFilter,
+  type RangeFilter,
+} from "../../composables/useEarningsLedger";
 
-const { state, activeRange, categoryIndex, filteredRecords, visibleRecords, filteredTotal, hasMore, cashValue, selectCategory, selectRange, rangeStyle, showMore } = useEarningsLedger();
+const {
+  state,
+  activeRange,
+  categoryIndex,
+  filteredRecords,
+  visibleRecords,
+  filteredTotal,
+  hasMore,
+  cashValue,
+  selectCategory,
+  selectRange,
+  rangeStyle,
+  showMore,
+} = useEarningsLedger();
 const ruleItems = [
   { label: "兑换比例", value: `${rewardRules.coinsPerYuan}金币 = 1元` },
   { label: "最低提现", value: `${rewardRules.minimumWithdrawYuan}元` },

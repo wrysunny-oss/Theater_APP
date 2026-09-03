@@ -1,5 +1,5 @@
 <template>
-  <scroll-view scroll-y class="h-screen bg-[#090a0f] text-white">
+  <scroll-view scroll-y class="app-page-shell h-screen">
     <AppPageHeader title="我的收藏" sticky>
       <template #right><text v-if="items.length" class="text-23rpx text-[#ffc400]" @click.stop="confirmClear">清空</text></template>
     </AppPageHeader>

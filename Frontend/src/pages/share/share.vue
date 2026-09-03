@@ -1,5 +1,5 @@
 <template>
-  <scroll-view scroll-y class="h-screen bg-[#090a0f] text-white">
+  <scroll-view scroll-y class="app-page-shell h-screen">
     <AppPageHeader title="邀请好友" />
     <view class="px-30rpx pb-60rpx pt-20rpx">
       <view class="overflow-hidden rounded-32rpx bg-gradient-to-br from-[#ffe26b] via-[#ffc400] to-[#f29b00] p-34rpx text-[#17140a] shadow-[0_18rpx_48rpx_rgba(255,196,0,0.18)]">

@@ -1,12 +1,12 @@
 <template>
-  <scroll-view scroll-y class="h-screen bg-[#090a0f] text-white">
+  <scroll-view scroll-y class="app-page-shell h-screen">
     <AppPageHeader title="观看历史" sticky>
       <template #right><text v-if="items.length" class="text-23rpx text-[#ffc400]" @click.stop="confirmClear">清空</text></template>
     </AppPageHeader>
     <view class="px-28rpx pb-50rpx pt-18rpx">
       <view v-if="items.length">
         <text class="mb-16rpx block text-22rpx text-[#9295a1]">共 {{ items.length }} 条观看记录</text>
-        <view class="overflow-hidden rounded-24rpx bg-[#15161d] px-20rpx">
+        <view class="app-surface overflow-hidden rounded-24rpx px-20rpx">
           <HistoryListItem v-for="(item, index) in items" :key="item.id" :item="item" :class="index < items.length - 1 ? 'border-b border-white/10' : ''" @play="play" @remove="remove" />
         </view>
       </view>

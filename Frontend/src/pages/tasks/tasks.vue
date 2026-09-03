@@ -1,5 +1,5 @@
 <template>
-  <scroll-view scroll-y class="h-screen bg-[#090a0f] text-white">
+  <scroll-view scroll-y class="app-page-shell h-screen">
     <view class="px-28rpx pb-150rpx pt-36rpx">
       <view class="flex items-end justify-between"><view><text class="block text-40rpx font-800">福利中心</text><text class="mt-10rpx block text-23rpx text-[#a6a8b2]">做任务，天天领金币</text></view><view class="rounded-full bg-[#2f2605] px-18rpx py-10rpx"><text class="text-24rpx font-700 text-[#ffc400]">{{ state.balance }} 金币</text></view></view>
 
