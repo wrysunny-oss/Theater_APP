@@ -11,14 +11,15 @@
         <up-button class="mt-22rpx" text="提交反馈" shape="circle" color="#ffc400" @click="submit" />
       </view>
 
-      <view v-if="records.length" class="mt-24rpx rounded-22rpx bg-[#15161d] p-22rpx"><text class="text-29rpx font-700">我的反馈</text><view v-for="item in records" :key="item.id" class="border-b border-white/10 py-20rpx"><view class="flex justify-between"><text class="text-24rpx font-700">{{ item.type }}</text><up-tag :text="item.status === 'pending' ? '待处理' : '已处理'" :type="item.status === 'pending' ? 'warning' : 'success'" size="mini" plain /></view><text class="mt-10rpx block text-22rpx leading-34rpx text-[#b8bac4]">{{ item.content }}</text><text class="mt-8rpx block text-20rpx text-[#7c7f8a]">{{ item.createdAt }}</text></view></view>
+      <view v-if="records.length" class="mt-24rpx rounded-22rpx bg-[#15161d] p-22rpx"><text class="text-29rpx font-700">我的反馈</text><view v-for="item in records" :key="item.id" class="border-b border-white/10 py-20rpx"><view class="flex justify-between"><text class="text-24rpx font-700">{{ item.type }}</text><up-tag :text="feedbackStatusText[item.status] || item.status" :type="item.status === 'PENDING' || item.status === 'PROCESSING' ? 'warning' : 'success'" size="mini" plain /></view><text class="mt-10rpx block text-22rpx leading-34rpx text-[#b8bac4]">{{ item.content }}</text><text class="mt-8rpx block text-20rpx text-[#7c7f8a]">{{ item.createdAt }}</text></view></view>
     </view>
   </scroll-view>
 </template>
 <script setup lang="ts">
 import { reactive, ref } from "vue";
+import { onShow } from "@dcloudio/uni-app";
 import AppPageHeader from "../../components/common/AppPageHeader.vue";
-import { getFeedbackList, submitFeedback } from "../../services/feedback";
+import { appApi, hasRemoteSession } from "../../services/api";
 const faqs = [
   { title: "如何获得金币？", content: "进入福利中心完成签到、观看、广告或分享任务，达到条件后点击领取即可获得金币。" },
   { title: "为什么任务进度每天会重置？", content: "日常任务按自然日统计，每天00:00自动重置；连续签到天数不会随日常进度一起清空。" },
@@ -27,13 +28,18 @@ const faqs = [
 ];
 const feedbackTypes = ["功能建议", "使用问题", "内容问题", "其他"];
 const form = reactive({ type: "功能建议", content: "", contact: "" });
-const records = ref(getFeedbackList());
+const records = ref<any[]>([]);
+const feedbackStatusText: Record<string, string> = { PENDING: '待处理', PROCESSING: '处理中', RESOLVED: '已解决', CLOSED: '已关闭' };
 const collapseCellStyle = { backgroundColor: "transparent", color: "#f5f5f7" };
 const typeStyle = (type: string) => form.type === type ? { backgroundColor: "#ffc400", color: "#171717" } : { backgroundColor: "#24252d", color: "#a6a8b2" };
-const submit = () => {
+const load = async () => { if (hasRemoteSession()) try { records.value = await appApi.feedbackMine(); } catch {} };
+onShow(load);
+const submit = async () => {
   const content = form.content.trim();
   if (content.length < 5) return void uni.showToast({ title: "反馈内容至少5个字", icon: "none" });
-  records.value = submitFeedback({ type: form.type, content, contact: form.contact.trim() });
+  if (!hasRemoteSession()) return void uni.navigateTo({ url: "/pages/auth/auth" });
+  try { await appApi.submitFeedback({ type: form.type, content, contact: form.contact.trim() || undefined, imageUrls: [] }); await load(); }
+  catch (error) { return void uni.showToast({ title: error instanceof Error ? error.message : "提交失败", icon: "none" }); }
   form.content = ""; form.contact = "";
   uni.showToast({ title: "提交成功", icon: "success" });
 };

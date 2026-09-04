@@ -21,6 +21,7 @@
 | 幻乐剧场 | `pages/index/index` |
 | 福利 | `pages/tasks/tasks` |
 | 收益 | `pages/earnings/earnings` |
+| 金币提现 | `pages/withdrawal/withdrawal` |
 | 我的 | `pages/user/user` |
 | 搜索 | `pages/search/search` |
 | 通知中心 | `pages/notifications/notifications` |

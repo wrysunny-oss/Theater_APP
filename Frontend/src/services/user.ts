@@ -14,6 +14,7 @@ export interface LocalUser {
   alipayName: string;
   alipayAccount: string;
 }
+import { appApi, clearTokens, hasRemoteSession, resolveAssetUrl } from "./api";
 
 const ACCOUNT_KEY = "hly_account_v2";
 const SESSION_KEY = "hly_session_v1";
@@ -23,7 +24,13 @@ const saveAccount = (user: LocalUser) => { const stored = { ...user, loggedIn: f
 export const getLocalUser = (): LocalUser => {
   const account = uni.getStorageSync(ACCOUNT_KEY) as LocalUser | "";
   if (!account || typeof account !== "object") return emptyAccount();
-  return { ...emptyAccount(), ...account, loggedIn: Boolean(uni.getStorageSync(SESSION_KEY)) };
+  return { ...emptyAccount(), ...account, loggedIn: hasRemoteSession() || Boolean(uni.getStorageSync(SESSION_KEY)) };
+};
+/** 将后端安全用户字段映射到现有视图模型，本地不再保存登录密码。 */
+export const saveRemoteUser = (remote: { avatarUrl?: null | string; id: string; nickname: string; phone: string }) => {
+  const current = getLocalUser();
+  const user = { ...current, id: remote.id, phone: remote.phone, nickname: remote.nickname, avatar: resolveAssetUrl(remote.avatarUrl), password: "", loggedIn: true };
+  saveAccount(user); uni.setStorageSync(SESSION_KEY, true); return user;
 };
 export const loginLocalUser = (phone: string, nickname?: string): LocalUser => {
   const existing = uni.getStorageSync(ACCOUNT_KEY) as LocalUser | "";
@@ -50,4 +57,4 @@ export const changeLocalPassword = (oldPassword: string, newPassword: string) =>
   const user = getLocalUser(); if (user.password !== oldPassword) return false;
   updateLocalUser({ password: newPassword }); return true;
 };
-export const logoutLocalUser = () => { uni.removeStorageSync(SESSION_KEY); return emptyAccount(); };
+export const logoutLocalUser = () => { void appApi.logout().catch(clearTokens); uni.removeStorageSync(SESSION_KEY); return emptyAccount(); };

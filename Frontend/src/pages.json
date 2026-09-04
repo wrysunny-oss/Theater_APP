@@ -15,6 +15,10 @@
 			"style": { "navigationBarTitleText": "收益" }
 		},
 		{
+			"path": "pages/withdrawal/withdrawal",
+			"style": { "navigationBarTitleText": "金币提现" }
+		},
+		{
 			"path": "pages/user/user",
 			"style": { "navigationBarTitleText": "我的" }
 		},

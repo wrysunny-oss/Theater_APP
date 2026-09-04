@@ -1,7 +1,7 @@
 <template>
   <scroll-view scroll-y class="app-page-shell h-screen">
     <view class="px-28rpx pb-150rpx pt-36rpx">
-      <view class="flex items-end justify-between"><view><text class="block text-40rpx font-800">福利中心</text><text class="mt-10rpx block text-23rpx text-[#a6a8b2]">做任务，天天领金币</text></view><view class="rounded-full bg-[#2f2605] px-18rpx py-10rpx"><text class="text-24rpx font-700 text-[#ffc400]">{{ state.balance }} 金币</text></view></view>
+      <view class="flex items-end justify-between"><view><text class="block text-40rpx font-800">福利中心</text><text class="mt-10rpx block text-23rpx text-[#a6a8b2]">做任务，天天领金币</text></view><view class="rounded-full bg-[#2f2605] px-18rpx py-10rpx"><text class="text-24rpx font-700 text-[#ffc400]">{{ remoteBalance }} 金币</text></view></view>
 
       <SignInCard :streak-days="state.streakDays" :signed="signed" :reward="signReward" :days="signDays" @sign="handleSign" />
 
@@ -21,15 +21,22 @@ import { onShow } from "@dcloudio/uni-app";
 import BottomNav from "../../components/home/BottomNav.vue";
 import TaskCard from "../../components/tasks/TaskCard.vue";
 import SignInCard from "../../components/tasks/SignInCard.vue";
-import { advanceDailyProgress, claimDailyReward, getRewardState, signIn, type DailyProgressKey } from "../../services/reward";
+import { advanceDailyProgress, claimDailyReward, getRewardState, type DailyProgressKey } from "../../services/reward";
+import { appApi, hasRemoteSession } from "../../services/api";
 
 interface TaskView { id: string; title: string; desc: string; icon: string; reward: number; progress: number; target: number; progressKey?: DailyProgressKey; step?: number }
 const state = ref(getRewardState());
-const reload = () => { state.value = getRewardState(); };
+const remoteCenter = ref<any>(); const remoteBalance = ref("0");
+const reload = async () => {
+  state.value = getRewardState();
+  if (!hasRemoteSession()) return;
+  try { const [center, me] = await Promise.all([appApi.rewardCenter(), appApi.me()]); remoteCenter.value = center; remoteBalance.value = me.coinBalance; }
+  catch (error) { uni.showToast({ title: error instanceof Error ? error.message : "加载失败", icon: "none" }); }
+};
 onShow(reload);
-const signed = computed(() => state.value.daily.claimed.includes("signin"));
-const signReward = computed(() => Math.min(10 + state.value.streakDays * 5, 40));
-const signDays = computed(() => Array.from({ length: 7 }, (_, index) => ({ label: `第${index + 1}天`, reward: Math.min(10 + index * 5, 40), active: index < state.value.streakDays })));
+const signed = computed(() => remoteCenter.value?.checkedInToday ?? state.value.daily.claimed.includes("signin"));
+const signReward = computed(() => Number(remoteCenter.value?.signInRules?.[(remoteCenter.value?.streak ?? 0) % 7]?.amount ?? 0));
+const signDays = computed(() => (remoteCenter.value?.signInRules ?? []).map((rule: any, index: number) => ({ label: `第${index + 1}天`, reward: Number(rule.amount), active: index < (remoteCenter.value?.streak ?? 0) })));
 const dailyTasks = computed<TaskView[]>(() => [
   { id: "watch", title: "观看短剧", desc: "累计观看10分钟", icon: "play-circle-fill", reward: 20, progress: state.value.daily.watchMinutes, target: 10, progressKey: "watchMinutes", step: 2 },
   { id: "ad", title: "观看激励广告", desc: "每日最多完成5次", icon: "volume-fill", reward: 30, progress: state.value.daily.adCount, target: 5, progressKey: "adCount", step: 1 },
@@ -38,7 +45,11 @@ const dailyTasks = computed<TaskView[]>(() => [
 const shareTask = computed<TaskView>(() => ({ id: "share", title: "分享幻乐剧场", desc: "分享应用给好友", icon: "share-fill", reward: 50, progress: state.value.daily.shareCount, target: 1, progressKey: "shareCount", step: 1 }));
 const isClaimed = (id: string) => state.value.daily.claimed.includes(id);
 
-const handleSign = () => { const result = signIn(); state.value = result.state; if (result.amount) uni.showToast({ title: `获得${result.amount}金币`, icon: "none" }); };
+const handleSign = async () => {
+  if (!hasRemoteSession()) return void uni.navigateTo({ url: "/pages/auth/auth" });
+  try { const result = await appApi.checkIn(); uni.showToast({ title: `获得${result.reward}金币`, icon: "none" }); await reload(); }
+  catch (error) { uni.showToast({ title: error instanceof Error ? error.message : "签到失败", icon: "none" }); }
+};
 const handleTask = (task: TaskView) => {
   if (isClaimed(task.id)) return;
   if (task.progress >= task.target) {

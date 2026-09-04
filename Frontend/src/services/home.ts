@@ -1,23 +1,14 @@
-import { homeMovieSeeds } from "../mock/home";
 import type { HomeMovie, MoviePage } from "../types/content";
+import { apiRequest } from "./api";
 
 interface MovieQuery { category: string; rank: string; page: number; pageSize?: number }
-const MOCK_TOTAL = 54;
 
 /** 模拟分页接口：保留异步边界，未来可无缝替换成 uni.request。 */
 export const fetchHomeMovies = async ({ category, rank, page, pageSize = 12 }: MovieQuery): Promise<MoviePage> => {
-  await new Promise((resolve) => setTimeout(resolve, 320));
-  const matched = homeMovieSeeds.filter((movie) =>
-    (category === "all" || movie.category === category) && movie.ranks.includes(rank),
-  );
-  if (!matched.length) return { list: [], page, hasMore: false };
-
-  const start = (page - 1) * pageSize;
-  const end = Math.min(start + pageSize, MOCK_TOTAL);
-  const list: HomeMovie[] = Array.from({ length: Math.max(0, end - start) }, (_, offset) => {
-    const absoluteIndex = start + offset;
-    const source = matched[absoluteIndex % matched.length];
-    return { ...source, id: source.sourceId * 100000 + absoluteIndex };
-  });
-  return { list, page, hasMore: end < MOCK_TOTAL };
+  const result = await apiRequest<any>(`/content/dramas?page=${page}&pageSize=${pageSize}${category === "all" ? "" : `&category=${encodeURIComponent(category)}`}`, { auth: false });
+  return { page, hasMore: result.hasMore, list: result.list.map((item: any): HomeMovie => ({
+    id: Number(item.id), sourceId: Number(item.id), title: item.title,
+    meta: `共 ${item._count?.episodes ?? 0} 集`, category: item.category,
+    ranks: [rank], image: item.coverUrl, badge: item.tags?.[0], badgeType: "warning",
+  })) };
 };

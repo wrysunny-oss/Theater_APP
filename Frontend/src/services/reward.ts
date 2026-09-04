@@ -3,7 +3,7 @@
  * 所有任务和收益页面只能通过这里读写，避免金币余额、任务状态和流水相互脱节。
  */
 export type DailyProgressKey = "adCount" | "watchMinutes" | "periodCount" | "shareCount";
-export type RewardCategory = "signin" | "task" | "ad" | "share";
+export type RewardCategory = "signin" | "task" | "ad" | "share" | "withdraw";
 
 export interface RewardLedgerItem {
   id: string;
@@ -53,7 +53,7 @@ export const getRewardState = (): RewardState => {
 };
 
 const save = (state: RewardState) => uni.setStorageSync(STORAGE_KEY, state);
-const inferCategory = (title: string): RewardCategory => title.includes("签到") ? "signin" : title.includes("广告") ? "ad" : title.includes("分享") ? "share" : "task";
+const inferCategory = (title: string): RewardCategory => title.includes("提现") ? "withdraw" : title.includes("签到") ? "signin" : title.includes("广告") ? "ad" : title.includes("分享") ? "share" : "task";
 const addLedger = (state: RewardState, title: string, amount: number, category: RewardCategory) => {
   const now = new Date();
   state.balance += amount;

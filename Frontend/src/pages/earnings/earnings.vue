@@ -89,5 +89,5 @@ const ruleItems = [
   { label: "有效期", value: rewardRules.validityText },
 ];
 
-const coming = () => uni.showToast({ title: "提现功能暂未开放", icon: "none" });
+const coming = () => uni.navigateTo({ url: "/pages/withdrawal/withdrawal" });
 </script>

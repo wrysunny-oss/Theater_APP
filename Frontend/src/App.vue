@@ -1,10 +1,26 @@
 <script setup lang="ts">
 import { onLaunch, onShow, onHide } from "@dcloudio/uni-app";
+import { appApi, hasRemoteSession } from "./services/api";
+
+/** 冷启动或重新回到前台时执行登录检查，阻止直接打开任意业务页面。 */
+let checkingSession = false;
+const ensureAuthenticated = async () => {
+  if (hasRemoteSession()) {
+    if (checkingSession) return;
+    checkingSession = true;
+    try { await appApi.me(); return; }
+    catch { /* 请求层会清理失效令牌，下面统一回到登录页。 */ }
+    finally { checkingSession = false; }
+  }
+  const route = getCurrentPages().at(-1)?.route || "";
+  if (["pages/auth/auth", "pages/agreement/agreement"].includes(route)) return;
+  uni.reLaunch({ url: "/pages/auth/auth" });
+};
 onLaunch(() => {
-  console.log("App Launch");
+  setTimeout(ensureAuthenticated, 0);
 });
 onShow(() => {
-  console.log("App Show");
+  ensureAuthenticated();
 });
 onHide(() => {
   console.log("App Hide");

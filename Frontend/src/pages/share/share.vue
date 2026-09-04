@@ -25,6 +25,11 @@
       </view>
 
       <view class="mt-28rpx rounded-24rpx bg-[#15161d] px-24rpx">
+        <view class="flex items-center border-b border-white/10 py-24rpx" @click="editInviteCode">
+          <view class="flex h-58rpx w-58rpx items-center justify-center rounded-16rpx bg-[#292817]"><up-icon name="edit-pen" size="23" color="#ffc400" /></view>
+          <view class="ml-18rpx flex-1"><text class="block text-26rpx font-600">修改邀请码</text><text class="mt-7rpx block text-21rpx text-[#9295a1]">6-12 位字母或数字</text></view>
+          <up-icon name="arrow-right" size="15" color="#7c7f8a" />
+        </view>
         <view class="flex items-center border-b border-white/10 py-24rpx" @click="copy(inviteCode, '邀请码已复制')">
           <view class="flex h-58rpx w-58rpx items-center justify-center rounded-16rpx bg-[#292817]"><up-icon name="coupon" size="23" color="#ffc400" /></view>
           <view class="ml-18rpx flex-1"><text class="block text-26rpx font-600">复制邀请码</text><text class="mt-7rpx block text-21rpx text-[#9295a1]">{{ inviteCode }}</text></view>
@@ -52,21 +57,45 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue";
-import { onShareAppMessage } from "@dcloudio/uni-app";
+import { computed, ref } from "vue";
+import { onShareAppMessage, onShow } from "@dcloudio/uni-app";
 import AppPageHeader from "../../components/common/AppPageHeader.vue";
 import appConfig from "../../config/app.json";
 import { getLocalUser } from "../../services/user";
+import { appApi, hasRemoteSession } from "../../services/api";
 
 const user = getLocalUser();
 
-/** 演示阶段按账号生成稳定邀请码，接入后端后替换为接口返回值。 */
-const inviteCode = computed(() => user.phone ? `HL${user.phone.slice(-6)}` : "HL888888");
+const serverInviteCode = ref("");
+const inviteCode = computed(() => serverInviteCode.value || (user.phone ? `HL${user.phone.slice(-6)}` : "HL888888"));
 const inviteLink = computed(() => `https://hly.example.com/invite?code=${inviteCode.value}`);
 
 const copy = (data: string, title: string) => {
   uni.setClipboardData({ data, success: () => uni.showToast({ title, icon: "success" }) });
 };
+
+/** 弹出可编辑输入框并由后端校验格式及唯一性。 */
+const editInviteCode = () => {
+  if (!hasRemoteSession()) return uni.showToast({ title: "请先登录", icon: "none" });
+  uni.showModal({
+    title: "修改邀请码",
+    content: inviteCode.value,
+    editable: true,
+    placeholderText: "请输入 6-12 位字母或数字",
+    success: async ({ confirm, content }) => {
+      if (!confirm) return;
+      const code = (content || "").trim().toUpperCase();
+      if (!/^[A-Z0-9]{6,12}$/.test(code)) return uni.showToast({ title: "请输入 6-12 位字母或数字", icon: "none" });
+      try {
+        serverInviteCode.value = (await appApi.updateInviteCode(code)).inviteCode;
+        uni.showToast({ title: "修改成功", icon: "success" });
+      } catch (error) {
+        uni.showToast({ title: error instanceof Error ? error.message : "修改失败", icon: "none" });
+      }
+    },
+  });
+};
+onShow(async () => { if (hasRemoteSession()) try { serverInviteCode.value = (await appApi.rewardCenter()).inviteCode; } catch {} });
 
 onShareAppMessage(() => ({
   title: `我在${appConfig.name}发现了好多精彩短剧，快来一起看！`,

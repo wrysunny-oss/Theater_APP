@@ -33,7 +33,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from "vue";
+import { onMounted, ref } from "vue";
 import HomeHeader from "../../components/home/HomeHeader.vue";
 import SearchBar from "../../components/home/SearchBar.vue";
 import HomeBanner from "../../components/home/HomeBanner.vue";
@@ -41,14 +41,23 @@ import QuickActionGrid from "../../components/home/QuickActionGrid.vue";
 import SectionTitle from "../../components/home/SectionTitle.vue";
 import MovieGrid from "../../components/home/MovieGrid.vue";
 import BottomNav from "../../components/home/BottomNav.vue";
-import { homeBanners, homeCategories, homeRankTabs } from "../../mock/home";
+import { homeBanners as fallbackBanners, homeCategories, homeRankTabs } from "../../mock/home";
 import { useHomeMovies } from "../../composables/useHomeMovies";
+import { appApi } from "../../services/api";
 
 const activeCategory = ref("all");
+const homeBanners = ref(fallbackBanners);
 const activeRank = ref("hot");
 const { movies, loading, refreshing, finished, listKey, loadMore, refresh } = useHomeMovies(activeCategory, activeRank);
 
 const openDrama = (id: number) => uni.navigateTo({ url: `/pages/player/player?id=${id}` });
+onMounted(async () => {
+  try {
+    const bootstrap = await appApi.bootstrap();
+    const slots = bootstrap.slots.filter((item: any) => item.placement === "HOME_BANNER");
+    if (slots.length) homeBanners.value = slots.map((item: any) => ({ id: Number(item.id), tag: "推荐", eyebrow: "运营推荐", title: item.title, image: item.imageUrl }));
+  } catch { /* 网络不可用时保留内置 Banner。 */ }
+});
 </script>
 
 <style scoped>

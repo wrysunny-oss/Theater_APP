@@ -23,6 +23,8 @@ export function useHomeMovies(activeCategory: Ref<string>, activeRank: Ref<strin
       movies.value = reset ? result.list : [...movies.value, ...result.list];
       page.value = targetPage + 1;
       finished.value = !result.hasMore;
+    } catch (error) {
+      if (version === requestVersion) { finished.value = true; uni.showToast({ title: error instanceof Error ? error.message : "内容加载失败", icon: "none" }); }
     } finally {
       if (version === requestVersion) { loading.value = false; refreshing.value = false; }
     }
