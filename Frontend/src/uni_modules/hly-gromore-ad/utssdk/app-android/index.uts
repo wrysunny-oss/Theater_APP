@@ -1,0 +1,287 @@
+import Bundle from "android.os.Bundle";
+import TTAdSdk from "com.bytedance.sdk.openadsdk.TTAdSdk";
+import TTAdConfig from "com.bytedance.sdk.openadsdk.TTAdConfig";
+import TTAdNative from "com.bytedance.sdk.openadsdk.TTAdNative";
+import TTRewardVideoAd from "com.bytedance.sdk.openadsdk.TTRewardVideoAd";
+import TTAdConstant from "com.bytedance.sdk.openadsdk.TTAdConstant";
+import TTCustomController from "com.bytedance.sdk.openadsdk.TTCustomController";
+import AdSlot from "com.bytedance.sdk.openadsdk.AdSlot";
+import MediationAdSlot from "com.bytedance.sdk.openadsdk.mediation.ad.MediationAdSlot";
+import MediationConstant from "com.bytedance.sdk.openadsdk.mediation.MediationConstant";
+import MediationPrivacyConfig from "com.bytedance.sdk.openadsdk.mediation.init.MediationPrivacyConfig";
+import IMediationPrivacyConfig from "com.bytedance.sdk.openadsdk.mediation.init.IMediationPrivacyConfig";
+import { UTSAndroid } from "io.dcloud.uts";
+import {
+  GroMoreFailure,
+  GroMoreInitOptions,
+  GroMoreRewardOptions,
+  GroMoreRewardResult,
+  GroMoreRewardSuccess,
+  GroMoreSuccess
+} from "../interface.uts";
+
+let adNative: TTAdNative | null = null;
+let rewardedAd: TTRewardVideoAd | null = null;
+let loadedPlacementId = "";
+let loadCompleted = false;
+let showCompleted = false;
+let rewardVerified = false;
+let rewardTransactionId = "";
+let showSuccess: GroMoreRewardSuccess | null = null;
+let showFailure: GroMoreFailure | null = null;
+
+/** GroMore 聚合层隐私开关，严格对应平台“生成标准代码”的配置。 */
+class HlyMediationPrivacyConfig extends MediationPrivacyConfig {
+  private limitPersonalAds: boolean;
+  private programmaticRecommend: boolean;
+
+  constructor(limitPersonalAds: boolean, programmaticRecommend: boolean) {
+    super();
+    this.limitPersonalAds = limitPersonalAds;
+    this.programmaticRecommend = programmaticRecommend;
+  }
+
+  override isLimitPersonalAds(): boolean {
+    return this.limitPersonalAds;
+  }
+
+  override isProgrammaticRecommend(): boolean {
+    return this.programmaticRecommend;
+  }
+}
+
+/**
+ * SDK 数据权限控制器。
+ * 当前返回值来自穿山甲后台生成的标准代码；若以后修改后台隐私选项，应同步修改业务配置。
+ */
+class HlyCustomController extends TTCustomController {
+  private privacyConfig: IMediationPrivacyConfig;
+
+  constructor(limitPersonalAds: boolean, programmaticRecommend: boolean) {
+    super();
+    this.privacyConfig = new HlyMediationPrivacyConfig(limitPersonalAds, programmaticRecommend);
+  }
+
+  override isCanUseLocation(): boolean { return true; }
+  override isCanUsePhoneState(): boolean { return true; }
+  override isCanUseWifiState(): boolean { return true; }
+  override isCanUseWriteExternal(): boolean { return true; }
+  override isCanUseAndroidId(): boolean { return true; }
+  override getMediationPrivacyConfig(): IMediationPrivacyConfig { return this.privacyConfig; }
+}
+
+/** 只结束一次展示回调，防止奖励、关闭等多个原生事件重复 resolve。 */
+function finishShow(completed: boolean, transactionId: string): void {
+  if (showCompleted) return;
+  showCompleted = true;
+  const callback = showSuccess;
+  showSuccess = null;
+  showFailure = null;
+  if (callback != null) {
+    callback({ placementId: loadedPlacementId, completed: completed, transactionId: transactionId });
+  }
+  const ad = rewardedAd;
+  if (ad != null) ad.getMediationManager().destroy();
+  rewardedAd = null;
+  loadedPlacementId = "";
+  rewardVerified = false;
+  rewardTransactionId = "";
+}
+
+class SdkStartCallback implements TTAdSdk.Callback {
+  private successCallback: GroMoreSuccess;
+  private failureCallback: GroMoreFailure;
+
+  constructor(success: GroMoreSuccess, failure: GroMoreFailure) {
+    this.successCallback = success;
+    this.failureCallback = failure;
+  }
+
+  override success(): void {
+    const context = UTSAndroid.getAppContext();
+    if (context == null) {
+      this.failureCallback("AD_CONTEXT_UNAVAILABLE", "无法获取 Android Application Context", -1);
+      return;
+    }
+    adNative = TTAdSdk.getAdManager().createAdNative(context);
+    this.successCallback();
+  }
+
+  override fail(code: Int, message: String): void {
+    this.failureCallback("AD_SDK_INIT_FAILED", message, code);
+  }
+}
+
+class RewardLoadListener implements TTAdNative.RewardVideoAdListener {
+  private successCallback: GroMoreSuccess;
+  private failureCallback: GroMoreFailure;
+
+  constructor(success: GroMoreSuccess, failure: GroMoreFailure) {
+    this.successCallback = success;
+    this.failureCallback = failure;
+  }
+
+  private finish(ad: TTRewardVideoAd): void {
+    rewardedAd = ad;
+    if (loadCompleted) return;
+    loadCompleted = true;
+    this.successCallback();
+  }
+
+  override onError(code: Int, message: String): void {
+    if (loadCompleted) return;
+    loadCompleted = true;
+    this.failureCallback("AD_LOAD_FAILED", message, code);
+  }
+
+  override onRewardVideoAdLoad(ad: TTRewardVideoAd): void {
+    // 这里只保存对象；以素材缓存完成回调作为真正可展示的时机。
+    rewardedAd = ad;
+  }
+
+  override onRewardVideoCached(): void {
+    const ad = rewardedAd;
+    if (ad != null) this.finish(ad);
+  }
+
+  override onRewardVideoCached(ad: TTRewardVideoAd): void {
+    this.finish(ad);
+  }
+}
+
+class RewardInteractionListener implements TTRewardVideoAd.RewardAdInteractionListener {
+  override onAdShow(): void {
+    // ECPM 只能在 show 回调之后读取，仅用于本地排障；实际结算以服务端回调参数为准。
+    const ad = rewardedAd;
+    if (ad == null) return;
+    const showEcpm = ad.getMediationManager().getShowEcpm();
+    if (showEcpm != null) {
+      console.log(`[GroMore] 展示成功 adn=${showEcpm.getSdkName()} slot=${showEcpm.getSlotId()} ecpm=${showEcpm.getEcpm()}`);
+    }
+  }
+  override onAdVideoBarClick(): void {}
+  override onVideoComplete(): void {}
+  override onSkippedVideo(): void {}
+
+  override onAdClose(): void {
+    // 页面只在广告关闭后恢复；是否完成由此前收到的服务端验奖结果决定。
+    finishShow(rewardVerified, rewardTransactionId);
+  }
+
+  override onVideoError(): void {
+    const failure = showFailure;
+    if (showCompleted) return;
+    showCompleted = true;
+    showSuccess = null;
+    showFailure = null;
+    rewardedAd = null;
+    if (failure != null) failure("AD_PLAY_FAILED", "激励视频播放失败", -1);
+  }
+
+  override onRewardVerify(
+    rewardVerify: Boolean,
+    rewardAmount: Int,
+    rewardName: String,
+    errorCode: Int,
+    errorMessage: String
+  ): void {
+    // 兼容旧客户端回调；GroMore 服务端验奖最终以 onRewardArrived 为准。
+  }
+
+  override onRewardArrived(isRewardValid: Boolean, rewardType: Int, extraInfo: Bundle): void {
+    rewardVerified = isRewardValid;
+    rewardTransactionId = extraInfo.getString(MediationConstant.KEY_TRANS_ID) ?? "";
+    if (!isRewardValid) {
+      const errorCode = extraInfo.getInt(MediationConstant.KEY_ERROR_CODE);
+      const errorMessage = extraInfo.getString(MediationConstant.KEY_ERROR_MSG) ?? "服务端验奖未通过";
+      console.log(`[GroMore] 验奖失败 code=${errorCode} message=${errorMessage}`);
+    }
+  }
+}
+
+/** 初始化 GroMore。调用方应确保用户已确认隐私协议。 */
+export function initializeGroMore(options: GroMoreInitOptions, success: GroMoreSuccess, failure: GroMoreFailure): void {
+  const context = UTSAndroid.getAppContext();
+  if (context == null) {
+    failure("AD_CONTEXT_UNAVAILABLE", "无法获取 Android Application Context", -1);
+    return;
+  }
+  if (TTAdSdk.isInitSuccess()) {
+    adNative = TTAdSdk.getAdManager().createAdNative(context);
+    success();
+    return;
+  }
+  const config = new TTAdConfig.Builder()
+    .appId(options.appId)
+    .appName(options.appName)
+    .useMediation(true)
+    .debug(options.debug)
+    .themeStatus(0)
+    .supportMultiProcess(false)
+    .customController(new HlyCustomController(options.limitPersonalAds, options.programmaticRecommend))
+    .build();
+  TTAdSdk.init(context, config);
+  TTAdSdk.start(new SdkStartCallback(success, failure));
+}
+
+/** 加载激励视频，只有素材缓存完毕后才通知业务层 ready。 */
+export function loadGroMoreReward(options: GroMoreRewardOptions, success: GroMoreSuccess, failure: GroMoreFailure): void {
+  const nativeLoader = adNative;
+  if (nativeLoader == null) {
+    failure("AD_NOT_INITIALIZED", "GroMore SDK 尚未初始化", -1);
+    return;
+  }
+  loadCompleted = false;
+  rewardedAd = null;
+  loadedPlacementId = options.placementId;
+  const mediationSlot = new MediationAdSlot.Builder()
+    .setMuted(false)
+    .setBidNotify(true)
+    .setRewardName(options.rewardName)
+    .setRewardAmount(options.rewardAmount.toInt())
+    .setExtraObject(MediationConstant.KEY_GROMORE_EXTRA, options.extra)
+    .build();
+  const adSlot = new AdSlot.Builder()
+    .setCodeId(options.placementId)
+    .setOrientation(TTAdConstant.VERTICAL)
+    .setUserID(options.userId)
+    .setMediationAdSlot(mediationSlot)
+    .build();
+  nativeLoader.loadRewardVideoAd(adSlot, new RewardLoadListener(success, failure));
+}
+
+/** 展示当前已缓存广告；奖励是否有效由 GroMore 服务端验奖结果决定。 */
+export function showGroMoreReward(placementId: string, success: GroMoreRewardSuccess, failure: GroMoreFailure): void {
+  const ad = rewardedAd;
+  const activity = UTSAndroid.getUniActivity();
+  if (ad == null || placementId != loadedPlacementId) {
+    failure("AD_NOT_READY", "激励视频尚未加载完成", -1);
+    return;
+  }
+  if (activity == null) {
+    failure("AD_ACTIVITY_UNAVAILABLE", "无法获取当前 Android Activity", -1);
+    return;
+  }
+  if (!ad.getMediationManager().isReady()) {
+    failure("AD_EXPIRED", "激励视频已失效，请重新加载", -1);
+    rewardedAd = null;
+    return;
+  }
+  showCompleted = false;
+  rewardVerified = false;
+  rewardTransactionId = "";
+  showSuccess = success;
+  showFailure = failure;
+  ad.setRewardAdInteractionListener(new RewardInteractionListener());
+  ad.showRewardVideoAd(activity);
+}
+
+/** 页面销毁时释放聚合广告对象，避免 Activity 被旧回调持有。 */
+export function disposeGroMoreReward(): void {
+  const ad = rewardedAd;
+  if (ad != null) ad.getMediationManager().destroy();
+  rewardedAd = null;
+  loadedPlacementId = "";
+  showSuccess = null;
+  showFailure = null;
+}

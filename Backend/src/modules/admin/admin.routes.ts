@@ -4,7 +4,7 @@ import { extname, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 import multer from "multer";
 import { AppError, ok } from "../../lib/http.js";
-import { authenticate, permit, verifySecondaryPassword } from "../../middleware/auth.js";
+import { authenticate, denyAgentWrites, permit, permitAny, verifySecondaryPassword } from "../../middleware/auth.js";
 import { validate } from "../../middleware/request.js";
 import {
   adjustCoinsSchema,
@@ -15,6 +15,7 @@ import {
   roleIdSchema,
   updateRolePermissionsSchema,
   updateAdRewardConfigSchema,
+  updateAgentShareRateSchema,
   updateUserAdShareSchema,
   updateUserStatusSchema,
   userIdSchema,
@@ -57,6 +58,7 @@ import {
   idSchema as safetyIdSchema,
   listSchema as safetyListSchema,
   reportHandleSchema,
+  riskPolicySchema,
   riskHandleSchema,
   userRiskSchema,
   type ListQuery as SafetyListQuery,
@@ -65,6 +67,7 @@ import * as safetyService from "../safety/safety.service.js";
 import * as reconciliationService from "../reconciliation/reconciliation.service.js";
 import { reconciliationScheduleSchema } from "../reconciliation/reconciliation.schema.js";
 import { listCallbackLogs } from "../webhook/webhook.service.js";
+import { getAgentDescendantIds } from "./agent-scope.js";
 
 const router = Router();
 const uploadDirectory = resolve(process.cwd(), "uploads");
@@ -94,9 +97,17 @@ router.use(authenticate);
 /** Vben 登录后通过该接口初始化菜单和按钮权限。 */
 router.get("/access-codes", (req, res) => ok(res, req.auth!.permissions));
 
+// 代理是整个中后台的只读角色；服务端总闸门防止绕过前端按钮直接提交写请求。
+router.use(denyAgentWrites);
+
 /** GET /dashboard：运营看板聚合数据；需要 dashboard:read。 */
-router.get("/dashboard", permit("dashboard:read"), async (_req, res) => {
-  return ok(res, await adminService.getDashboard());
+router.get("/dashboard", permit("dashboard:read"), async (req, res) => {
+  return ok(res, await adminService.getDashboard(req.auth!.accountType === "AGENT" ? req.auth!.userId : undefined));
+});
+
+/** GET /agent-overview：代理专属成员、广告收入、佣金、趋势和成员贡献排行。 */
+router.get("/agent-overview", permit("agent:readonly"), async (req, res) => {
+  return ok(res, await adminService.getAgentOverview(req.auth!.userId));
 });
 
 /** GET /users：分页搜索用户；需要 user:read。 */
@@ -107,23 +118,28 @@ router.get(
   async (req, res) => {
     return ok(
       res,
-      await adminService.listUsers(res.locals.validatedQuery as UserListQuery),
+      await adminService.listUsers(res.locals.validatedQuery as UserListQuery, req.auth!.accountType === "AGENT" ? req.auth!.userId : undefined),
     );
   },
 );
 
-/** POST /users：管理员创建无需上级邀请码的一级代理账号；需要 user:update。 */
+/** POST /users：管理员创建无需上级邀请码的代理账号；需要 user:update。 */
 router.post(
   "/users",
   permit("user:update"),
   verifySecondaryPassword,
   validate(createLevelOneAgentSchema),
-  async (req, res) => ok(res, await adminService.createLevelOneAgent(req.auth!.userId, req.body, req), "一级代理创建成功", 201),
+  async (req, res) => ok(res, await adminService.createLevelOneAgent(req.auth!.userId, req.body, req), "代理创建成功", 201),
 );
 
 /** PUT /users/:id/ad-share-rate：配置用户独立广告分成；null 表示继承全局。 */
 router.put("/users/:id/ad-share-rate", permit("user:update"), verifySecondaryPassword, validate(userIdSchema, "params"), validate(updateUserAdShareSchema), async (req, res) =>
   ok(res, await adminService.updateUserAdShare(req.auth!.userId, BigInt(String(req.params.id)), req.body.shareRateBps, req), "用户分成比例已更新"),
+);
+
+/** PUT /users/:id/agent-share-rate：调整管理员创建代理的无限下级返佣比例。 */
+router.put("/users/:id/agent-share-rate", permit("user:update"), verifySecondaryPassword, validate(userIdSchema, "params"), validate(updateAgentShareRateSchema), async (req, res) =>
+  ok(res, await adminService.updateAgentShareRate(req.auth!.userId, BigInt(String(req.params.id)), req.body.agentShareRateBps, req), "代理分成比例已更新"),
 );
 
 /** GET /users/:id：获取用户详情、角色和业务数量；需要 user:read。 */
@@ -134,7 +150,7 @@ router.get(
   async (req, res) => {
     return ok(
       res,
-      await adminService.getUserDetail(BigInt(String(req.params.id))),
+      await adminService.getUserDetail(BigInt(String(req.params.id)), req.auth!.accountType === "AGENT" ? req.auth!.userId : undefined),
     );
   },
 );
@@ -380,18 +396,18 @@ router.post("/ad-reward-settlements", permit("reward:update"), verifySecondaryPa
   ok(res, await adminService.settleAdReward(req.auth!.userId, req.body, req), "广告收益结算成功", 201),
 );
 /** GET /ad-reward-settlements：分页查询广告收入、用户净收益及两级返佣快照。 */
-router.get("/ad-reward-settlements", permit("reward:read"), validate(adSettlementListSchema, "query"), async (_req, res) =>
-  ok(res, await adminService.listAdRewardSettlements(res.locals.validatedQuery)),
+router.get("/ad-reward-settlements", permitAny("reward:read", "agent:reward:read"), validate(adSettlementListSchema, "query"), async (req, res) =>
+  ok(res, await adminService.listAdRewardSettlements(res.locals.validatedQuery, req.auth!.accountType === "AGENT" ? req.auth!.userId : undefined)),
 );
 /** GET /ad-reward-dashboard：读取广告收入、分配金额和平台留存汇总。 */
-router.get("/ad-reward-dashboard", permit("reward:read"), async (_req, res) => ok(res, await adminService.getAdRewardDashboard()));
+router.get("/ad-reward-dashboard", permitAny("reward:read", "agent:reward:read"), async (req, res) => ok(res, await adminService.getAdRewardDashboard(req.auth!.accountType === "AGENT" ? req.auth!.userId : undefined)));
 /** GET /ad-callback-logs：分页查询广告平台回调处理日志。 */
-router.get("/ad-callback-logs", permit("reward:read"), validate(adSettlementListSchema.omit({ userId: true }), "query"), async (_req, res) =>
+router.get("/ad-callback-logs", permit("reward:update"), validate(adSettlementListSchema.omit({ userId: true }), "query"), async (_req, res) =>
   ok(res, await listCallbackLogs(res.locals.validatedQuery)),
 );
 /** GET /users/:id/team：查询指定用户向下两级邀请团队及返佣贡献。 */
 router.get("/users/:id/team", permit("user:read"), validate(userIdSchema, "params"), async (req, res) =>
-  ok(res, await adminService.getUserTeam(BigInt(req.params.id as string))),
+  ok(res, await adminService.getUserTeam(BigInt(req.params.id as string), req.auth!.accountType === "AGENT" ? req.auth!.userId : undefined)),
 );
 
 /** GET /reward-rules：查询全部注册、邀请和签到奖励规则；需要 reward:read。 */
@@ -422,11 +438,13 @@ router.get(
   "/invite-relations",
   permit("reward:read"),
   validate(rewardListQuerySchema, "query"),
-  async (_req, res) => {
+  async (req, res) => {
+    const allowedUserIds = req.auth!.accountType === "AGENT" ? await getAgentDescendantIds(req.auth!.userId) : undefined;
     return ok(
       res,
       await rewardService.listInvites(
         res.locals.validatedQuery as RewardListQuery,
+        allowedUserIds,
       ),
     );
   },
@@ -436,11 +454,13 @@ router.get(
   "/check-ins",
   permit("reward:read"),
   validate(rewardListQuerySchema, "query"),
-  async (_req, res) => {
+  async (req, res) => {
+    const allowedUserIds = req.auth!.accountType === "AGENT" ? await getAgentDescendantIds(req.auth!.userId) : undefined;
     return ok(
       res,
       await rewardService.listCheckIns(
         res.locals.validatedQuery as RewardListQuery,
+        allowedUserIds,
       ),
     );
   },
@@ -775,6 +795,14 @@ router.put(
 /** GET /device-risk-assessments：分页查询设备环境评分、命中项和自动封号结果。 */
 router.get("/device-risk-assessments", permit("risk:read"), validate(safetyListSchema, "query"), async (_req, res) =>
   ok(res, await safetyService.listDeviceRiskAssessments(res.locals.validatedQuery as SafetyListQuery)),
+);
+/** GET /risk-dashboard：获取检测次数、自动封号、预警、待处理事件和平均分。 */
+router.get("/risk-dashboard", permit("risk:read"), async (_req, res) => ok(res, await safetyService.getRiskDashboard()));
+/** GET /risk-policy：读取当前设备评分、距离和关联账号策略。 */
+router.get("/risk-policy", permit("risk:read"), async (_req, res) => ok(res, await safetyService.getRiskPolicy()));
+/** PUT /risk-policy：更新风控策略；需要二次密码并记录审计日志。 */
+router.put("/risk-policy", permit("risk:update"), verifySecondaryPassword, validate(riskPolicySchema), async (req, res) =>
+  ok(res, await safetyService.updateRiskPolicy(req.auth!.userId, req.body, req), "风控策略已更新"),
 );
 /** PUT /risk-events/:id：确认或忽略风险事件；需要 risk:update。 */ router.put(
   "/risk-events/:id",

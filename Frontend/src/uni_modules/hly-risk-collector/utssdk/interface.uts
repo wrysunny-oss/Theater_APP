@@ -1,0 +1,16 @@
+/** 三态检测结果。UNKNOWN 表示权限不足、系统不支持或检测失败，不等同于风险。 */
+export type RiskCheckStatus = "PASS" | "RISK" | "UNKNOWN"
+export type RiskCollectorOptions = { nonce: string }
+export type RiskCollectorResult = {
+  simStatus: RiskCheckStatus,
+  wechatStatus: RiskCheckStatus,
+  douyinStatus: RiskCheckStatus,
+  alipayStatus: RiskCheckStatus,
+  emulatorStatus: RiskCheckStatus,
+  cloudDeviceStatus: RiskCheckStatus,
+  scriptStatus: RiskCheckStatus,
+  networkStatus: RiskCheckStatus,
+  /** IP 信誉必须由服务端结合可信 IP 情报判断，客户端固定返回 UNKNOWN。 */
+  ipStatus: RiskCheckStatus,
+  evidence: UTSJSONObject
+}

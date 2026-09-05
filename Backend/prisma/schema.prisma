@@ -148,6 +148,8 @@ model User {
   inviteCode   String?     @unique @map("invite_code") @db.VarChar(12)
   /// 广告分成万分比；null 表示继承全局配置，10000 表示 100%。
   adShareRateBps Int?      @map("ad_share_rate_bps")
+  /// 代理无限下级广告返佣万分比；仅管理员创建的代理账号可设置。
+  agentShareRateBps Int?   @map("agent_share_rate_bps")
   createdAt    DateTime    @default(now()) @map("created_at")
   updatedAt    DateTime    @updatedAt @map("updated_at")
   favorites    Favorite[]
@@ -161,14 +163,33 @@ model User {
   invitedBy    InviteRelation?  @relation("InviteRelationInvitee")
   checkIns     CheckIn[]
   withdrawals Withdrawal[]
+  payoutAccount PayoutAccount?
   reports      Report[]
   loginLogs    LoginLog[]
   devices      UserDevice[]
   riskEvents   RiskEvent[]
   riskAssessments DeviceRiskAssessment[]
+  riskChallenges DeviceRiskChallenge[]
   adRewardSettlements AdRewardSettlement[]
+  agentCommissions AgentAdCommission[] @relation("AgentCommissionReceiver")
+  generatedAgentCommissions AgentAdCommission[] @relation("AgentCommissionSource")
 
   @@map("users")
+}
+
+/// 用户预先绑定的提现收款账户；完整姓名和账号使用 AES-256-GCM 密文保存。
+model PayoutAccount {
+  id             BigInt            @id @default(autoincrement())
+  userId         BigInt            @unique @map("user_id")
+  channel        WithdrawalChannel
+  accountCipher  String            @map("account_cipher") @db.Text
+  accountMasked  String            @map("account_masked") @db.VarChar(100)
+  realNameCipher String            @map("real_name_cipher") @db.Text
+  createdAt      DateTime          @default(now()) @map("created_at")
+  updatedAt      DateTime          @updatedAt @map("updated_at")
+  user           User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("payout_accounts")
 }
 
 /// 广告分成全局配置；金额换算复用 WithdrawalConfig.coinsPerCent。
@@ -177,6 +198,8 @@ model AdRewardConfig {
   defaultShareRateBps Int      @default(5000) @map("default_share_rate_bps")
   directShareRateBps  Int      @default(0) @map("direct_share_rate_bps")
   indirectShareRateBps Int     @default(0) @map("indirect_share_rate_bps")
+  /// 单个用户按北京时间自然日最多可结算的 GroMore 激励广告次数。
+  dailyRewardedAdLimit Int     @default(5) @map("daily_rewarded_ad_limit")
   updatedAt           DateTime @updatedAt @map("updated_at")
 
   @@map("ad_reward_config")
@@ -198,12 +221,35 @@ model AdRewardSettlement {
   indirectShareRateBps Int @default(0) @map("indirect_share_rate_bps")
   directAwardedCoins BigInt @default(0) @map("direct_awarded_coins")
   indirectAwardedCoins BigInt @default(0) @map("indirect_awarded_coins")
+  /// USER_DEDUCTED 为历史拆分记录；PLATFORM_FUNDED 表示返佣由平台额外承担。
+  commissionFunding String @default("PLATFORM_FUNDED") @map("commission_funding") @db.VarChar(20)
   source        String   @default("PANGLE") @db.VarChar(30)
   createdAt     DateTime @default(now()) @map("created_at")
   user          User     @relation(fields: [userId], references: [id], onDelete: Restrict)
+  agentCommissions AgentAdCommission[]
 
   @@index([userId, createdAt])
   @@map("ad_reward_settlements")
+}
+
+/// 代理从任意深度下级广告收益中获得的平台额外佣金；比例和金额均按结算时快照保存。
+model AgentAdCommission {
+  id            String   @id @default(uuid()) @db.VarChar(36)
+  settlementId  String   @map("settlement_id") @db.VarChar(36)
+  agentId       BigInt   @map("agent_id")
+  sourceUserId  BigInt   @map("source_user_id")
+  depth         Int
+  shareRateBps  Int      @map("share_rate_bps")
+  awardedCoins  BigInt   @map("awarded_coins")
+  createdAt     DateTime @default(now()) @map("created_at")
+  settlement    AdRewardSettlement @relation(fields: [settlementId], references: [id], onDelete: Restrict)
+  agent         User     @relation("AgentCommissionReceiver", fields: [agentId], references: [id], onDelete: Restrict)
+  sourceUser    User     @relation("AgentCommissionSource", fields: [sourceUserId], references: [id], onDelete: Restrict)
+
+  @@unique([settlementId, agentId])
+  @@index([agentId, createdAt])
+  @@index([sourceUserId, createdAt])
+  @@map("agent_ad_commissions")
 }
 
 /// 广告平台回调接收日志；成功和失败请求均保留，便于审计与问题追踪。
@@ -570,17 +616,18 @@ model DeviceRiskAssessment {
   userId                BigInt   @map("user_id")
   deviceId              String   @map("device_id") @db.VarChar(100)
   score                 Int
+  knownChecks           Int      @default(10) @map("known_checks")
   autoBanned            Boolean  @default(false) @map("auto_banned")
-  simPresent            Boolean  @map("sim_present")
-  wechatInstalled       Boolean  @map("wechat_installed")
-  douyinInstalled       Boolean  @map("douyin_installed")
-  alipayInstalled       Boolean  @map("alipay_installed")
-  emulatorDetected      Boolean  @map("emulator_detected")
-  cloudDeviceDetected   Boolean  @map("cloud_device_detected")
-  scriptDetected        Boolean  @map("script_detected")
-  networkTrusted        Boolean  @map("network_trusted")
-  ipTrusted             Boolean  @map("ip_trusted")
-  locationDistanceSafe  Boolean  @map("location_distance_safe")
+  simPresent            Boolean? @map("sim_present")
+  wechatInstalled       Boolean? @map("wechat_installed")
+  douyinInstalled       Boolean? @map("douyin_installed")
+  alipayInstalled       Boolean? @map("alipay_installed")
+  emulatorDetected      Boolean? @map("emulator_detected")
+  cloudDeviceDetected   Boolean? @map("cloud_device_detected")
+  scriptDetected        Boolean? @map("script_detected")
+  networkTrusted        Boolean? @map("network_trusted")
+  ipTrusted             Boolean? @map("ip_trusted")
+  locationDistanceSafe  Boolean? @map("location_distance_safe")
   distanceMeters        Int?     @map("distance_meters")
   ip                    String?  @db.VarChar(64)
   detail                Json?
@@ -590,6 +637,21 @@ model DeviceRiskAssessment {
   @@index([userId, createdAt])
   @@index([score, createdAt])
   @@map("device_risk_assessments")
+}
+
+/// 服务端签发的一次性设备检测挑战，使用后立即失效，阻止旧检测包重复提交。
+model DeviceRiskChallenge {
+  id        String   @id @default(uuid()) @db.VarChar(36)
+  userId    BigInt   @map("user_id")
+  context   String   @db.VarChar(20)
+  nonce     String   @unique @db.VarChar(64)
+  expiresAt DateTime @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+  @@map("device_risk_challenges")
 }
 
 /// 每次对账保留汇总结果，便于监控任务执行状态和历史趋势。

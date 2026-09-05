@@ -1,5 +1,7 @@
 import { computed, reactive, ref } from "vue";
+import { onShow } from "@dcloudio/uni-app";
 import { changeLocalPassword, getLocalUser, updateLocalUser } from "../services/user";
+import { appApi, hasRemoteSession } from "../services/api";
 
 export type SecurityEditor = "password" | "phone" | "question" | "alipay";
 
@@ -8,15 +10,10 @@ export function useAccountSecurity() {
   const user = ref(getLocalUser());
   const popupVisible = ref(false);
   const activeEditor = ref<SecurityEditor>("password");
+  const payoutAccount = ref<{ accountMasked?: string; bound: boolean }>({ bound: false });
   const form = reactive({ oldPassword: "", newPassword: "", phone: "", code: "", question: "", answer: "", alipayName: "", alipayAccount: "" });
   const maskedPhone = computed(() => user.value.phone.replace(/^(\d{3})\d{4}(\d{4})$/, "$1****$2"));
-  const maskedAlipay = computed(() => {
-    const value = user.value.alipayAccount;
-    if (!value) return "";
-    if (value.includes("@")) { const [name, domain] = value.split("@"); return `${name.slice(0, 2)}***@${domain}`; }
-    return value.replace(/^(\d{3})\d+(\d{3})$/, "$1****$2");
-  });
-  const alipaySummary = computed(() => user.value.alipayAccount ? `${user.value.alipayName} · ${maskedAlipay.value}` : "未绑定，点击填写支付宝信息");
+  const alipaySummary = computed(() => payoutAccount.value.bound ? `已绑定 · ${payoutAccount.value.accountMasked}` : "未绑定，点击填写支付宝信息");
   const loginItems = computed(() => [
     { key: "password" as const, title: "登录密码", subtitle: "定期修改密码可以提升账户安全", icon: "lock" },
     { key: "phone" as const, title: "绑定手机号", subtitle: maskedPhone.value || "未绑定", icon: "phone" },
@@ -26,12 +23,13 @@ export function useAccountSecurity() {
   const openEditor = (type: SecurityEditor) => {
     activeEditor.value = type;
     form.question = user.value.securityQuestion; form.answer = user.value.securityAnswer;
-    form.alipayName = user.value.alipayName; form.alipayAccount = user.value.alipayAccount;
+    // 服务端不回传完整敏感信息，换绑时必须重新填写姓名和账号。
+    form.alipayName = ""; form.alipayAccount = "";
     popupVisible.value = true;
   };
   const closeEditor = () => { popupVisible.value = false; form.oldPassword = ""; form.newPassword = ""; form.phone = ""; form.code = ""; };
   const toast = (title: string) => uni.showToast({ title, icon: "none" });
-  const save = () => {
+  const save = async () => {
     if (activeEditor.value === "password") {
       if (form.newPassword.length < 6 || form.newPassword.length > 20) return toast("新密码需为6-20位");
       if (!changeLocalPassword(form.oldPassword, form.newPassword)) return toast("旧密码不正确");
@@ -48,9 +46,21 @@ export function useAccountSecurity() {
     if (activeEditor.value === "alipay") {
       if (!form.alipayName.trim()) return toast("请输入支付宝名称");
       if (form.alipayAccount.trim().length < 5) return toast("请输入正确的支付宝账号");
-      user.value = updateLocalUser({ alipayName: form.alipayName.trim(), alipayAccount: form.alipayAccount.trim() });
+      if (!hasRemoteSession()) return void uni.navigateTo({ url: "/pages/auth/auth" });
+      try {
+        const saved = await appApi.bindPayoutAccount({ channel: "ALIPAY", realName: form.alipayName.trim(), account: form.alipayAccount.trim() });
+        payoutAccount.value = saved;
+      } catch (error) {
+        return toast(error instanceof Error ? error.message : "收款账户保存失败");
+      }
+      // 不把完整支付宝姓名和账号写入设备本地存储，绑定状态以服务端脱敏数据为准。
+      user.value = updateLocalUser({ alipayName: "", alipayAccount: "" });
     }
     closeEditor(); uni.showToast({ title: "保存成功", icon: "success" });
   };
-  return { user, popupVisible, activeEditor, form, alipaySummary, loginItems, popupTitle, openEditor, closeEditor, save };
+  onShow(async () => {
+    if (!hasRemoteSession()) return;
+    try { payoutAccount.value = await appApi.payoutAccount(); } catch {}
+  });
+  return { user, payoutAccount, popupVisible, activeEditor, form, alipaySummary, loginItems, popupTitle, openEditor, closeEditor, save };
 }

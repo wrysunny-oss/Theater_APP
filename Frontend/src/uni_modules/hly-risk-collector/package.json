@@ -1,0 +1,7 @@
+{
+  "id": "hly-risk-collector",
+  "displayName": "幻乐剧场 Android 风控采集器",
+  "version": "1.0.0",
+  "description": "Android 设备环境信号采集 UTS 插件，无法可靠判断时返回 UNKNOWN",
+  "uni_modules": {}
+}

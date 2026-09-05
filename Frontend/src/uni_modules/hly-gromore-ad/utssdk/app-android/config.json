@@ -1,0 +1,12 @@
+{
+  "minSdkVersion": 24,
+  "abis": ["arm64-v8a"],
+  "dependencies": [
+    "com.pangle_beta.cn:mediation-sdk:7.7.1.6"
+  ],
+  "project": {
+    "repositories": [
+      "maven { url 'https://artifact.bytedance.com/repository/pangle' }"
+    ]
+  }
+}

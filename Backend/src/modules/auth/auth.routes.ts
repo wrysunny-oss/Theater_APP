@@ -35,6 +35,11 @@ router.post("/login", authLimiter, validate(credentialsSchema), async (req, res)
   return ok(res, await authService.login(req.body.phone, req.body.password, req));
 });
 
+/** POST /admin-login：后台专用登录入口，仅管理员和代理账号可以登录。 */
+router.post("/admin-login", authLimiter, validate(credentialsSchema), async (req, res) => {
+  return ok(res, await authService.login(req.body.phone, req.body.password, req, true));
+});
+
 /** POST /refresh：单次使用刷新令牌并轮换一组新令牌。 */
 router.post("/refresh", authLimiter, validate(refreshSchema), async (req, res) => ok(res, await rotateRefreshToken(req.body.refreshToken)));
 /** POST /logout：撤销指定刷新令牌，重复调用保持幂等。 */

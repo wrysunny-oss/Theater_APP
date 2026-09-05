@@ -15,7 +15,12 @@ export function useUserDashboard() {
   const completedTasks = computed(() => rewards.value.daily.claimed.length);
   const reload = async () => {
     user.value = getLocalUser(); rewards.value = getRewardState(); unreadCount.value = getUnreadCount();
-    if (hasRemoteSession()) try { const profile = await appApi.me(); rewards.value.balance = Number(profile.coinBalance); } catch {}
+    if (hasRemoteSession()) try {
+      // 金币和连续签到均属于服务端账户数据，个人中心不能继续展示设备本地缓存。
+      const [profile, rewardCenter] = await Promise.all([appApi.me(), appApi.rewardCenter()]);
+      rewards.value.balance = Number(profile.coinBalance);
+      rewards.value.streakDays = Number(rewardCenter.streak ?? 0);
+    } catch {}
   };
   const logout = () => uni.showModal({ title: "退出登录", content: "任务和金币数据会继续保留在当前设备。", success: ({ confirm }) => { if (confirm) user.value = logoutLocalUser(); } });
   onShow(reload);

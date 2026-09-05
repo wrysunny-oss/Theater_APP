@@ -7,20 +7,26 @@ export const userListQuerySchema = z.object({
 });
 export const userIdSchema = z.object({ id: z.coerce.bigint().positive() });
 export const updateUserStatusSchema = z.object({ status: z.enum(["ACTIVE", "DISABLED"]) });
-/** 后台创建一级代理无需上级邀请码，但必须提供可登录的基础账号信息。 */
+/** 后台创建代理无需上级邀请码，但必须提供可登录的基础账号信息。 */
 export const createLevelOneAgentSchema = z.object({
   phone: z.string().regex(/^1\d{10}$/, "请输入正确的手机号"),
   nickname: z.string().trim().min(1).max(50),
   password: z.string().min(8).max(72),
+  agentShareRateBps: z.number().int().min(0).max(10_000),
 });
 /** null 表示用户继承全局分成，整数使用万分比存储。 */
 export const updateUserAdShareSchema = z.object({
   shareRateBps: z.number().int().min(0).max(10_000).nullable(),
 });
+/** 仅管理员可调整代理无限下级佣金比例，整数 10000 表示 100%。 */
+export const updateAgentShareRateSchema = z.object({
+  agentShareRateBps: z.number().int().min(0).max(10_000),
+});
 export const updateAdRewardConfigSchema = z.object({
   defaultShareRateBps: z.number().int().min(0).max(10_000),
   directShareRateBps: z.number().int().min(0).max(10_000),
   indirectShareRateBps: z.number().int().min(0).max(10_000),
+  dailyRewardedAdLimit: z.number().int().min(0).max(1_000),
 }).refine((value) => value.directShareRateBps + value.indirectShareRateBps <= 10_000, {
   message: "直推和间推返佣比例合计不能超过 100%",
 });

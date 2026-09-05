@@ -14,6 +14,10 @@ const schema = z.object({
   WITHDRAW_DATA_SECRET: z.string().min(32),
   PANGLE_CALLBACK_SECRET: z.string().min(32).default("local-pangle-callback-secret-change-me"),
   PANGLE_CALLBACK_IPS: z.string().default(""),
+  /** GroMore 广告位维度服务端验证使用的 m-key，只允许保存在后端环境变量。 */
+  PANGLE_REWARD_SECURITY_KEY: z.string().min(16).optional(),
+  PANGLE_GROMORE_APP_ID: z.string().default("5879132"),
+  PANGLE_GROMORE_REWARDED_PLACEMENT_ID: z.string().default("104489019"),
 });
 
 export const env = schema.parse(process.env);

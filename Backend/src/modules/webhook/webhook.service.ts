@@ -1,9 +1,10 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import type { Request } from "express";
 import { env } from "../../config.js";
 import { AppError } from "../../lib/http.js";
 import { prisma } from "../../lib/prisma.js";
 import { settleAdReward } from "../admin/admin.service.js";
+import type { GroMoreRewardQuery } from "./webhook.schema.js";
 
 const MAX_CLOCK_SKEW_SECONDS = 300;
 
@@ -56,3 +57,61 @@ export async function listCallbackLogs(query: { page: number; pageSize: number }
   return { list, total, ...query };
 }
 
+/** GroMore 签名只覆盖交易号，规则为 sha256(m-key:trans_id)。 */
+export function verifyGroMoreSign(transId: string, signature: string, securityKey = env.PANGLE_REWARD_SECURITY_KEY) {
+  if (!securityKey) return false;
+  const expected = createHash("sha256").update(`${securityKey}:${transId}`).digest("hex");
+  const actualBuffer = Buffer.from(signature.toLowerCase(), "utf8");
+  const expectedBuffer = Buffer.from(expected, "utf8");
+  return actualBuffer.length === expectedBuffer.length && timingSafeEqual(actualBuffer, expectedBuffer);
+}
+
+/**
+ * GroMore eCPM 单位为“分/千次展示”。换算单次展示人民币收入：
+ * ecpm(分) / 100(元) / 1000(次)，最终向下截断到项目支持的百万分之一元。
+ */
+export function groMoreEcpmToRevenueYuan(ecpmFen: string) {
+  const [integer, fraction = ""] = ecpmFen.split(".");
+  const scale = 10n ** BigInt(fraction.length);
+  const fenScaled = BigInt(integer!) * scale + BigInt(fraction || "0");
+  const revenueMicros = fenScaled * 10n / scale;
+  return `${revenueMicros / 1_000_000n}.${(revenueMicros % 1_000_000n).toString().padStart(6, "0")}`;
+}
+
+/**
+ * 处理 GroMore 官方激励回调。无论验证成功与否都返回平台约定结构；
+ * trans_id 复用为结算 requestId，确保平台重试不会重复发放金币。
+ */
+export async function receiveGroMoreReward(input: GroMoreRewardQuery, request: Request) {
+  if (!verifyGroMoreSign(input.trans_id, input.sign)) return { is_verify: false, reason: 40001 };
+  if (input.mediation_rit !== env.PANGLE_GROMORE_REWARDED_PLACEMENT_ID) return { is_verify: false, reason: 40002 };
+  if (!input.ecpm || Number(input.ecpm) <= 0) return { is_verify: false, reason: 40001 };
+
+  const eventId = `gromore:${input.trans_id}`;
+  const payload = { ...input, user_id: input.user_id.toString(), sign: "[REDACTED]" };
+  // 先通过 eventId 唯一索引抢占处理权，禁止两个并发回调同时进入金币结算。
+  try {
+    await prisma.adCallbackLog.create({ data: { eventId, status: "PROCESSING", payload, ip: request.ip } });
+  } catch (error) {
+    if ((error as { code?: string }).code !== "P2002") throw error;
+    const existing = await prisma.adCallbackLog.findUniqueOrThrow({ where: { eventId } });
+    if (existing.status === "SUCCESS") return { is_verify: true, reason: 20000 };
+    if (existing.status === "PROCESSING") return { is_verify: false, reason: 50001 };
+    // 失败记录允许平台重试，但 updateMany 条件更新确保仍只有一个请求取得重试权。
+    const claimed = await prisma.adCallbackLog.updateMany({
+      where: { eventId, status: "FAILED" },
+      data: { status: "PROCESSING", reason: null, payload, ip: request.ip },
+    });
+    if (claimed.count !== 1) return { is_verify: false, reason: 50001 };
+  }
+  try {
+    const source = `GROMORE:${input.adn_name || "UNKNOWN"}`.slice(0, 30);
+    await settleAdReward(null, { requestId: eventId, userId: input.user_id, revenueYuan: groMoreEcpmToRevenueYuan(input.ecpm), source, enforceDailyLimit: true }, request);
+    await prisma.adCallbackLog.update({ where: { eventId }, data: { status: "SUCCESS" } });
+    return { is_verify: true, reason: 20000 };
+  } catch (error) {
+    const reason = error instanceof Error ? error.message.slice(0, 500) : "未知错误";
+    await prisma.adCallbackLog.update({ where: { eventId }, data: { status: "FAILED", reason } });
+    return { is_verify: false, reason: 50002 };
+  }
+}

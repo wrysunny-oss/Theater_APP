@@ -17,16 +17,23 @@ const placeholderBridge: AndroidAdBridge = {
 
 let bridge: AndroidAdBridge = placeholderBridge;
 let initialized = false;
+let initializationPromise: Promise<void> | null = null;
 
 /** 原生实现完成后通过此入口注入，便于独立测试 Service 和 Hook。 */
-export const registerAndroidAdBridge = (nativeBridge: AndroidAdBridge) => { bridge = nativeBridge; initialized = false; };
+export const registerAndroidAdBridge = (nativeBridge: AndroidAdBridge) => {
+  bridge = nativeBridge;
+  // 这里只注册实现，不主动初始化；调用时机必须晚于用户同意隐私协议。
+};
 
 export const initializeAds = async () => {
   if (initialized) return;
   if (!adConfig.enabled || !adConfig.appId) return notConfigured();
-  const options: AdInitializeOptions = { appId: adConfig.appId, debug: adConfig.debug, personalizedAds: adConfig.personalizedAds };
-  await bridge.initialize(options);
-  initialized = true;
+  // 多个页面同时请求广告时共用同一个初始化任务，保证 useMediation 和 TTAdSdk.init 只执行一次。
+  if (!initializationPromise) {
+    const options: AdInitializeOptions = { appId: adConfig.appId, debug: adConfig.debug, personalizedAds: adConfig.personalizedAds };
+    initializationPromise = bridge.initialize(options).then(() => { initialized = true; });
+  }
+  await initializationPromise;
 };
 
 export const loadRewardedAd = async (options: RewardedAdLoadOptions) => {
@@ -41,4 +48,5 @@ export const showRewardedAd = async (placementId: string): Promise<RewardedAdRes
 };
 
 export const setPersonalizedAdsEnabled = (enabled: boolean) => bridge.setPersonalizedAdsEnabled(enabled);
-export const disposeAds = () => { bridge.dispose(); initialized = false; };
+// 这里只销毁当前广告对象，不能重置 SDK 初始化状态；GroMore 默认只允许初始化一次。
+export const disposeAds = () => { bridge.dispose(); };

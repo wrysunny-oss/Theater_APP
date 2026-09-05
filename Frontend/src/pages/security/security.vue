@@ -16,7 +16,7 @@
         <view class="flex items-center py-24rpx" @click="openEditor('alipay')">
           <view class="flex h-58rpx w-58rpx items-center justify-center rounded-16rpx bg-[#14263b]"><up-icon name="rmb-circle" size="23" color="#4aa3ff" /></view>
           <view class="ml-18rpx min-w-0 flex-1"><text class="block text-26rpx font-600">支付宝账号</text><text class="mt-8rpx block truncate text-22rpx text-[#9295a1]">{{ alipaySummary }}</text></view>
-          <up-tag v-if="user.alipayAccount" text="已绑定" type="success" size="mini" plain />
+          <up-tag v-if="payoutAccount.bound" text="已绑定" type="success" size="mini" plain />
           <up-icon class="ml-12rpx" name="arrow-right" size="15" color="#7c7f8a" />
         </view>
       </view>
@@ -53,5 +53,7 @@
 import AppPageHeader from "../../components/common/AppPageHeader.vue";
 import FormField from "../../components/common/FormField.vue";
 import { useAccountSecurity } from "../../composables/useAccountSecurity";
-const { user, popupVisible, activeEditor, form, alipaySummary, loginItems, popupTitle, openEditor, closeEditor, save } = useAccountSecurity();
+import { onLoad } from "@dcloudio/uni-app";
+const { payoutAccount, popupVisible, activeEditor, form, alipaySummary, loginItems, popupTitle, openEditor, closeEditor, save } = useAccountSecurity();
+onLoad((query) => { if (query?.editor === "alipay") openEditor("alipay"); });
 </script>

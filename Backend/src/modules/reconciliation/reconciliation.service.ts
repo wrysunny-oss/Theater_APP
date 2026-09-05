@@ -19,11 +19,12 @@ export async function runReconciliation(options: ReconciliationRunOptions = {}) 
     },
   });
   try {
-    const [users, ledgerGroups, frozenGroups, adSettlements, adLedgers] = await Promise.all([
+    const [users, ledgerGroups, frozenGroups, adSettlements, agentCommissions, adLedgers] = await Promise.all([
       prisma.user.findMany({ select: { id: true, coinBalance: true, frozenCoinBalance: true } }),
       prisma.rewardLedger.groupBy({ by: ["userId"], _sum: { amount: true } }),
       prisma.withdrawal.groupBy({ by: ["userId"], where: { status: { in: ["PENDING", "PAYING"] } }, _sum: { coins: true } }),
-      prisma.adRewardSettlement.findMany({ select: { id: true, userId: true, directInviterId: true, indirectInviterId: true, baseUserCoins: true, awardedCoins: true, directAwardedCoins: true, indirectAwardedCoins: true } }),
+      prisma.adRewardSettlement.findMany({ select: { id: true, userId: true, directInviterId: true, indirectInviterId: true, baseUserCoins: true, awardedCoins: true, directAwardedCoins: true, indirectAwardedCoins: true, commissionFunding: true } }),
+      prisma.agentAdCommission.findMany({ select: { settlementId: true, agentId: true, awardedCoins: true } }),
       prisma.rewardLedger.findMany({ where: { type: "AD", bizId: { startsWith: "ad:" } }, select: { userId: true, amount: true, bizId: true } }),
     ]);
     const ledgerMap = new Map(ledgerGroups.map((item) => [item.userId.toString(), item._sum.amount ?? 0n]));
@@ -35,11 +36,13 @@ export async function runReconciliation(options: ReconciliationRunOptions = {}) 
       if (user.coinBalance !== expectedAvailable) issues.push({ runId: run.id, userId: user.id, type: "AVAILABLE_COIN", actualAmount: user.coinBalance, expectedAmount: expectedAvailable, difference: user.coinBalance - expectedAvailable });
       if (user.frozenCoinBalance !== expectedFrozen) issues.push({ runId: run.id, userId: user.id, type: "FROZEN_COIN", actualAmount: user.frozenCoinBalance, expectedAmount: expectedFrozen, difference: user.frozenCoinBalance - expectedFrozen });
     }
-    // 每笔广告结算必须满足“基础收益 = 用户净收益 + 直推 + 间推”，且每份入账都能找到唯一流水。
+    // 历史记录按用户收益内拆分核对；新记录必须保证观看者完整取得基础收益，返佣由平台额外承担。
     const adLedgerMap = new Map(adLedgers.map((item) => [item.bizId ?? "", item]));
     for (const settlement of adSettlements) {
-      const distributed = settlement.awardedCoins + settlement.directAwardedCoins + settlement.indirectAwardedCoins;
-      if (distributed !== settlement.baseUserCoins) issues.push({ runId: run.id, userId: settlement.userId, type: "AD_DISTRIBUTION", actualAmount: distributed, expectedAmount: settlement.baseUserCoins, difference: distributed - settlement.baseUserCoins });
+      const actualViewerCoins = settlement.commissionFunding === "PLATFORM_FUNDED"
+        ? settlement.awardedCoins
+        : settlement.awardedCoins + settlement.directAwardedCoins + settlement.indirectAwardedCoins;
+      if (actualViewerCoins !== settlement.baseUserCoins) issues.push({ runId: run.id, userId: settlement.userId, type: "AD_DISTRIBUTION", actualAmount: actualViewerCoins, expectedAmount: settlement.baseUserCoins, difference: actualViewerCoins - settlement.baseUserCoins });
       const payouts = [
         { suffix: "viewer", userId: settlement.userId, amount: settlement.awardedCoins },
         { suffix: "direct", userId: settlement.directInviterId, amount: settlement.directAwardedCoins },
@@ -51,6 +54,12 @@ export async function runReconciliation(options: ReconciliationRunOptions = {}) 
         const actual = ledger?.userId === payout.userId ? ledger.amount : 0n;
         if (actual !== payout.amount) issues.push({ runId: run.id, userId: payout.userId, type: "AD_LEDGER", actualAmount: actual, expectedAmount: payout.amount, difference: actual - payout.amount });
       }
+    }
+    // 每一笔平台代理佣金也必须对应唯一的代理金币流水。
+    for (const commission of agentCommissions) {
+      const ledger = adLedgerMap.get(`ad:${commission.settlementId}:agent:${commission.agentId}`);
+      const actual = ledger?.userId === commission.agentId ? ledger.amount : 0n;
+      if (actual !== commission.awardedCoins) issues.push({ runId: run.id, userId: commission.agentId, type: "AGENT_AD_LEDGER", actualAmount: actual, expectedAmount: commission.awardedCoins, difference: actual - commission.awardedCoins });
     }
     await prisma.$transaction(async (tx) => {
       if (issues.length) await tx.reconciliationIssue.createMany({ data: issues });

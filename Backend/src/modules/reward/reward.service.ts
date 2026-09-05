@@ -88,6 +88,13 @@ function chinaDate(offsetDays = 0) {
   return date;
 }
 
+/** 北京时间当天的真实时间戳范围；区别于签到表使用的“日期占位值”。 */
+function chinaTimestampDayRange(now = new Date()) {
+  const day = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Shanghai", year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
+  const start = new Date(`${day}T00:00:00+08:00`);
+  return { start, end: new Date(start.getTime() + 24 * 60 * 60 * 1000) };
+}
+
 export function checkIn(userId: bigint) {
   return assertAllowed(userId, "reward").then(() => prisma.$transaction(async (tx) => {
     const today = chinaDate();
@@ -107,14 +114,31 @@ export function checkIn(userId: bigint) {
 export async function getRewardCenter(userId: bigint) {
   const inviteCode = await ensureInviteCode(userId);
   const today = chinaDate();
-  const [relation, invitedCount, todayCheckIn, recentCheckIns, rules] = await prisma.$transaction([
+  const adDay = chinaTimestampDayRange();
+  const [relation, invitedCount, todayCheckIn, recentCheckIns, rules, adConfig, rewardedAdCountToday] = await prisma.$transaction([
     prisma.inviteRelation.findUnique({ where: { inviteeId: userId }, include: { inviter: { select: { nickname: true, phone: true } } } }),
     prisma.inviteRelation.count({ where: { inviterId: userId } }),
     prisma.checkIn.findUnique({ where: { userId_date: { userId, date: today } } }),
     prisma.checkIn.findMany({ where: { userId, date: { gte: chinaDate(-30) } }, orderBy: { date: "desc" } }),
     prisma.rewardRule.findMany({ where: { code: { startsWith: "SIGNIN_DAY_" } }, orderBy: { code: "asc" } }),
+    prisma.adRewardConfig.upsert({ where: { id: 1 }, create: { id: 1 }, update: {} }),
+    prisma.adRewardSettlement.count({ where: { userId, source: { startsWith: "GROMORE:" }, createdAt: { gte: adDay.start, lt: adDay.end } } }),
   ]);
-  return { inviteCode, relation, invitedCount, checkedInToday: Boolean(todayCheckIn), streak: recentCheckIns[0]?.streak ?? 0, recentCheckIns, signInRules: rules };
+  const latest = recentCheckIns[0];
+  const yesterday = chinaDate(-1);
+  // 只有最后一次签到发生在今天或昨天，历史 streak 才仍代表“连续签到”。
+  const streak = latest && [today.getTime(), yesterday.getTime()].includes(latest.date.getTime()) ? latest.streak : 0;
+  return {
+    inviteCode,
+    relation,
+    invitedCount,
+    checkedInToday: Boolean(todayCheckIn),
+    streak,
+    recentCheckIns,
+    signInRules: rules,
+    rewardedAdCountToday,
+    rewardedAdDailyLimit: adConfig.dailyRewardedAdLimit,
+  };
 }
 
 /** App 金币明细只返回当前用户的数据，按创建时间倒序分页。 */
@@ -139,18 +163,20 @@ export function updateRewardRule(operatorId: bigint, code: string, data: { amoun
   });
 }
 
-export async function listInvites(query: RewardListQuery) {
+export async function listInvites(query: RewardListQuery, allowedUserIds?: bigint[]) {
+  const where = allowedUserIds ? { inviteeId: { in: allowedUserIds } } : {};
   const [list, total] = await prisma.$transaction([
-    prisma.inviteRelation.findMany({ skip: (query.page - 1) * query.pageSize, take: query.pageSize, include: { inviter: { select: { phone: true, nickname: true } }, invitee: { select: { phone: true, nickname: true } } }, orderBy: { id: "desc" } }),
-    prisma.inviteRelation.count(),
+    prisma.inviteRelation.findMany({ where, skip: (query.page - 1) * query.pageSize, take: query.pageSize, include: { inviter: { select: { phone: true, nickname: true } }, invitee: { select: { phone: true, nickname: true } } }, orderBy: { id: "desc" } }),
+    prisma.inviteRelation.count({ where }),
   ]);
   return { list, total, ...query };
 }
 
-export async function listCheckIns(query: RewardListQuery) {
+export async function listCheckIns(query: RewardListQuery, allowedUserIds?: bigint[]) {
+  const where = allowedUserIds ? { userId: { in: allowedUserIds } } : {};
   const [list, total] = await prisma.$transaction([
-    prisma.checkIn.findMany({ skip: (query.page - 1) * query.pageSize, take: query.pageSize, include: { user: { select: { phone: true, nickname: true } } }, orderBy: { id: "desc" } }),
-    prisma.checkIn.count(),
+    prisma.checkIn.findMany({ where, skip: (query.page - 1) * query.pageSize, take: query.pageSize, include: { user: { select: { phone: true, nickname: true } } }, orderBy: { id: "desc" } }),
+    prisma.checkIn.count({ where }),
   ]);
   return { list, total, ...query };
 }

@@ -24,8 +24,11 @@ export async function register(input: RegisterInput) {
 }
 
 /** 校验账号状态和密码，失败时统一提示，避免暴露手机号是否已经注册。 */
-export async function login(phone: string, password: string, request?: Pick<Request, "ip" | "header">) {
-  const user = await prisma.user.findUnique({ where: { phone } });
+export async function login(phone: string, password: string, request?: Pick<Request, "ip" | "header">, backofficeOnly = false) {
+  const user = await prisma.user.findUnique({
+    where: { phone },
+    include: { roles: { select: { role: { select: { code: true } } } } },
+  });
   const recentFailures = await prisma.loginLog.count({ where: { account: phone, success: false, createdAt: { gte: new Date(Date.now() - 15 * 60_000) } } });
   if (recentFailures >= 5) throw new AppError(429, 2006, "登录失败次数过多，请 15 分钟后重试");
   if (!user?.passwordHash || !(await bcrypt.compare(password, user.passwordHash))) {
@@ -35,6 +38,11 @@ export async function login(phone: string, password: string, request?: Pick<Requ
   if (user.status !== "ACTIVE" || ["FROZEN", "BANNED"].includes(user.riskStatus)) {
     await prisma.loginLog.create({ data: { account: phone, userId: user.id, success: false, failureCode: "ACCOUNT_RESTRICTED", ip: request?.ip, userAgent: request?.header("user-agent"), deviceId: request?.header("x-device-id"), appVersion: request?.header("x-app-version") } });
     throw new AppError(403, 2005, "账号已被禁用");
+  }
+  // App 仍允许所有用户登录；后台专用入口仅接受管理员或代理账号。
+  if (backofficeOnly && user.roles.length === 0) {
+    await prisma.loginLog.create({ data: { account: phone, userId: user.id, success: false, failureCode: "BACKOFFICE_FORBIDDEN", ip: request?.ip, userAgent: request?.header("user-agent") } });
+    throw new AppError(403, 2008, "该账号不是管理员或代理，无法登录后台");
   }
   const deviceId = request?.header("x-device-id");
   await prisma.loginLog.create({ data: { account: phone, userId: user.id, success: true, ip: request?.ip, userAgent: request?.header("user-agent"), deviceId, appVersion: request?.header("x-app-version") } });

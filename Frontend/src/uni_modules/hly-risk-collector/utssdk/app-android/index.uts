@@ -1,0 +1,97 @@
+import Context from "android.content.Context";
+import PackageManager from "android.content.pm.PackageManager";
+import Manifest from "android.Manifest";
+import Build from "android.os.Build";
+import Debug from "android.os.Debug";
+import ConnectivityManager from "android.net.ConnectivityManager";
+import NetworkCapabilities from "android.net.NetworkCapabilities";
+import TelephonyManager from "android.telephony.TelephonyManager";
+import File from "java.io.File";
+import System from "java.lang.System";
+import { UTSAndroid } from "io.dcloud.uts";
+import { RiskCheckStatus, RiskCollectorOptions, RiskCollectorResult } from "../interface.uts";
+
+const PASS: RiskCheckStatus = "PASS";
+const RISK: RiskCheckStatus = "RISK";
+const UNKNOWN: RiskCheckStatus = "UNKNOWN";
+
+/** 查询指定应用是否安装；包已在 AndroidManifest queries 中显式声明。 */
+function appInstalled(packageName: string): RiskCheckStatus {
+  try {
+    const context = UTSAndroid.getAppContext();
+    // HBuilderX 5.x 中返回类型为 Context?；云打包或进程初始化早期可能暂时取不到。
+    if (context == null) return UNKNOWN;
+    // 使用兼容 API 以支持 minSdk 24；该重载在新 Android 上仍可正常工作。
+    context.getPackageManager().getPackageInfo(packageName, 0);
+    return PASS;
+  } catch (error) { return RISK; }
+}
+
+/** 只判断是否存在可用 SIM，不读取手机号、IMSI、ICCID 等敏感标识。 */
+function collectSim(): RiskCheckStatus {
+  try {
+    const context = UTSAndroid.getAppContext();
+    if (context == null) return UNKNOWN;
+    if (context.checkSelfPermission(Manifest.permission.READ_PHONE_STATE) != PackageManager.PERMISSION_GRANTED) return UNKNOWN;
+    const telephony = context.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager;
+    return telephony.getSimState() == TelephonyManager.SIM_STATE_READY ? PASS : RISK;
+  } catch (error) { return UNKNOWN; }
+}
+
+/** 多特征组合识别常见模拟器，避免依赖单一厂商字段。 */
+function collectEmulator(): RiskCheckStatus {
+  const fingerprint = Build.FINGERPRINT.toLowerCase();
+  const model = Build.MODEL.toLowerCase();
+  const product = Build.PRODUCT.toLowerCase();
+  const hardware = Build.HARDWARE.toLowerCase();
+  const found = fingerprint.includes("generic") || fingerprint.includes("unknown") || model.includes("google_sdk") ||
+    model.includes("emulator") || model.includes("android sdk built for") || product.includes("sdk") ||
+    product.includes("emulator") || hardware.includes("goldfish") || hardware.includes("ranchu") || hardware.includes("vbox");
+  return found ? RISK : PASS;
+}
+
+/** 仅匹配明确云手机特征；普通设备不因缺少厂商信息而误判。 */
+function collectCloudDevice(): RiskCheckStatus {
+  const source = `${Build.BRAND} ${Build.MANUFACTURER} ${Build.MODEL} ${Build.PRODUCT}`.toLowerCase();
+  const found = source.includes("redfinger") || source.includes("cloudphone") || source.includes("cloud phone") || source.includes("vmos") || source.includes("x8 sandbox");
+  return found ? RISK : PASS;
+}
+
+/** 检测调试器、root/Magisk 文件以及常见 Hook 管理器。 */
+function collectScriptEnvironment(): RiskCheckStatus {
+  try {
+    if (Debug.isDebuggerConnected() || Debug.waitingForDebugger()) return RISK;
+    const paths = ["/system/bin/su", "/system/xbin/su", "/sbin/su", "/data/adb/magisk"];
+    for (let i = 0; i < paths.length; i++) if (new File(paths[i]).exists()) return RISK;
+    const hooks = ["org.lsposed.manager", "org.meowcat.edxposed.manager", "de.robv.android.xposed.installer"];
+    for (let i = 0; i < hooks.length; i++) if (appInstalled(hooks[i]) == PASS) return RISK;
+    return PASS;
+  } catch (error) { return UNKNOWN; }
+}
+
+/** VPN 或系统代理视为风险；无活动网络和系统 API 异常均返回 UNKNOWN。 */
+function collectNetwork(): RiskCheckStatus {
+  try {
+    const context = UTSAndroid.getAppContext();
+    if (context == null) return UNKNOWN;
+    const manager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager;
+    const network = manager.getActiveNetwork();
+    if (network == null) return UNKNOWN;
+    const capabilities = manager.getNetworkCapabilities(network);
+    if (capabilities == null) return UNKNOWN;
+    if (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN)) return RISK;
+    const proxyHost = System.getProperty("http.proxyHost");
+    if (proxyHost != null && proxyHost.length > 0) return RISK;
+    return PASS;
+  } catch (error) { return UNKNOWN; }
+}
+
+/** 每个子项独立降级，采集失败不会导致 APP 崩溃或直接触发自动封号。 */
+export function collectRiskSignals(options: RiskCollectorOptions): RiskCollectorResult {
+  return {
+    simStatus: collectSim(), wechatStatus: appInstalled("com.tencent.mm"), douyinStatus: appInstalled("com.ss.android.ugc.aweme"),
+    alipayStatus: appInstalled("com.eg.android.AlipayGphone"), emulatorStatus: collectEmulator(), cloudDeviceStatus: collectCloudDevice(),
+    scriptStatus: collectScriptEnvironment(), networkStatus: collectNetwork(), ipStatus: UNKNOWN,
+    evidence: { platform: "android", sdkInt: Build.VERSION.SDK_INT, manufacturer: Build.MANUFACTURER, model: Build.MODEL, challengeNonce: options.nonce, collectorVersion: "1.0.0" }
+  };
+}

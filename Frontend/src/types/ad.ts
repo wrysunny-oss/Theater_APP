@@ -24,6 +24,8 @@ export interface RewardedAdLoadOptions {
   userId?: string;
   rewardName?: string;
   rewardAmount?: number;
+  /** 服务端验奖透传数据，不在客户端存放任何签名密钥。 */
+  extra?: string;
 }
 
 export interface AndroidAdBridge {

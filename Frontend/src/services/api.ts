@@ -9,7 +9,7 @@ export interface AuthUser { avatarUrl?: null | string; id: string; nickname: str
 export interface AuthResult { accessToken: string; refreshToken: string; user: AuthUser }
 
 let refreshing: null | Promise<string> = null;
-function deviceId() {
+export function deviceId() {
   let id = uni.getStorageSync(DEVICE_KEY) as string;
   if (!id) { id = `app-${Date.now()}-${Math.random().toString(36).slice(2)}`; uni.setStorageSync(DEVICE_KEY, id); }
   return id;
@@ -94,17 +94,21 @@ export const appApi = {
   bindInvite: (inviteCode: string) => apiRequest<any>("/rewards/invite/bind", { method: "POST", data: { inviteCode } }),
   updateInviteCode: (inviteCode: string) => apiRequest<{ inviteCode: string }>("/rewards/invite-code", { method: "PUT", data: { inviteCode } }),
   withdrawalConfig: () => apiRequest<any>("/withdrawals/config"),
-  createWithdrawal: (data: { account: string; channel: string; coins: string; realName: string; requestId: string }) => apiRequest<any>("/withdrawals", { method: "POST", data }),
+  payoutAccount: () => apiRequest<{ accountMasked?: string; bound: boolean; channel?: "ALIPAY" | "BANK" | "WECHAT" }>("/withdrawals/payout-account"),
+  bindPayoutAccount: (data: { account: string; channel: "ALIPAY" | "BANK" | "WECHAT"; realName: string }) => apiRequest<{ accountMasked: string; bound: true; channel: string }>("/withdrawals/payout-account", { method: "PUT", data }),
+  createWithdrawal: (data: { coins: string; requestId: string }) => apiRequest<any>("/withdrawals", { method: "POST", data }),
   withdrawals: () => apiRequest<any>("/withdrawals/mine?page=1&pageSize=100"),
   submitFeedback: (data: { contact?: string; content: string; imageUrls?: string[]; type: string }) => apiRequest<any>("/safety/feedback", { method: "POST", data }),
   feedbackMine: () => apiRequest<any[]>("/safety/feedback/mine"),
   /** 原生检测模块完成十项检测后统一上报；评分和封号决定始终由服务端执行。 */
   submitDeviceRiskAssessment: (data: {
-    deviceId: string; simPresent: boolean; wechatInstalled: boolean; douyinInstalled: boolean; alipayInstalled: boolean;
-    emulatorDetected: boolean; cloudDeviceDetected: boolean; scriptDetected: boolean; networkRiskDetected: boolean; ipRiskDetected: boolean;
+    challengeId:string;deviceId: string; simStatus:'PASS'|'RISK'|'UNKNOWN'; wechatStatus:'PASS'|'RISK'|'UNKNOWN'; douyinStatus:'PASS'|'RISK'|'UNKNOWN'; alipayStatus:'PASS'|'RISK'|'UNKNOWN';
+    emulatorStatus:'PASS'|'RISK'|'UNKNOWN'; cloudDeviceStatus:'PASS'|'RISK'|'UNKNOWN'; scriptStatus:'PASS'|'RISK'|'UNKNOWN'; networkStatus:'PASS'|'RISK'|'UNKNOWN'; ipStatus:'PASS'|'RISK'|'UNKNOWN';
     location?: { latitude:number; longitude:number; referenceLatitude:number; referenceLongitude:number; maxDistanceMeters?:number };
     evidence?: Record<string, unknown>;
   }) => apiRequest<{autoBanned:boolean;score:number}>("/safety/device-risk-assessments", { method:"POST", data }),
+  riskAssessmentStatus: (context:"login"|"reward"|"withdrawal") => apiRequest<{context:string;expiresAt:null|string;fresh:boolean;required:boolean}>(`/safety/device-risk-status?context=${context}`),
+  createRiskChallenge:(context:"login"|"reward"|"withdrawal")=>apiRequest<{id:string;context:string;nonce:string;expiresAt:string}>("/safety/device-risk-challenges",{method:"POST",data:{context}}),
   bootstrap: () => apiRequest<any>("/operations/bootstrap", { auth: false }),
   document: (code: string) => apiRequest<any>(`/operations/documents/${encodeURIComponent(code)}`, { auth: false }),
 };

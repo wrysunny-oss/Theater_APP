@@ -21,6 +21,8 @@ import AppPageHeader from "../../components/common/AppPageHeader.vue";
 import appConfig from "../../config/app.json";
 import { saveRemoteUser } from "../../services/user";
 import { appApi, saveTokens } from "../../services/api";
+import { ensureRiskAssessment } from "../../services/risk-assessment";
+import { grantPrivacyConsentAndInitializeAds } from "../../services/privacy-consent";
 type AuthMode = "login" | "register" | "reset"; type LoginMethod = "code" | "password";
 const mode = ref<AuthMode>("login"); const loginMethod = ref<LoginMethod>("code"); const agreement = ref<string[]>([]);
 const form = reactive({ phone: "", code: "", nickname: "", password: "", inviteCode: "" }); const submitting = ref(false);
@@ -35,12 +37,14 @@ const submit = async () => {
   if (mode.value === "register" && !form.nickname.trim()) return void uni.showToast({ title: "请输入昵称", icon: "none" });
   if (mode.value === "register" && !/^[A-Za-z0-9]{6,12}$/.test(form.inviteCode.trim())) return void uni.showToast({ title: "请输入有效邀请码", icon: "none" });
   if (!agreement.value.includes("accepted")) return void uni.showToast({ title: "请先同意相关协议", icon: "none" });
+  // 当前调用来自用户点击事件，处于主线程且明确晚于隐私授权；初始化结果不阻断账号登录。
+  void grantPrivacyConsentAndInitializeAds().catch((error) => console.error("GroMore 初始化失败", error));
   submitting.value = true;
   try {
     const result = mode.value === "register"
       ? await appApi.register({ phone: form.phone, password: form.password, nickname: form.nickname.trim(), inviteCode: form.inviteCode.trim().toUpperCase() })
       : await appApi.login(form.phone, form.password);
-    saveTokens(result); saveRemoteUser(result.user); finish(mode.value === "register" ? "注册成功" : "登录成功");
+    saveTokens(result); saveRemoteUser(result.user); await ensureRiskAssessment("login"); finish(mode.value === "register" ? "注册成功" : "登录成功");
   } catch (error) { submitting.value = false; uni.showToast({ title: error instanceof Error ? error.message : "请求失败", icon: "none" }); }
 };
 const finish = (title: string) => { submitting.value = true; setTimeout(() => { submitting.value = false; uni.showToast({ title, icon: "success" }); setTimeout(() => uni.reLaunch({ url: "/pages/index/index" }), 400); }, 400); };

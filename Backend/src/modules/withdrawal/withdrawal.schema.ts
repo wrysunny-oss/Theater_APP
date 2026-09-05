@@ -3,6 +3,10 @@ import { z } from "zod";
 export const createWithdrawalSchema = z.object({
   requestId: z.string().trim().min(8).max(64),
   coins: z.coerce.bigint().positive(),
+});
+
+/** 收款账户在设置页单独绑定，提现申请不再接收客户端提交的敏感账户字段。 */
+export const payoutAccountSchema = z.object({
   channel: z.enum(["ALIPAY", "WECHAT", "BANK"]),
   account: z.string().trim().min(4).max(100),
   realName: z.string().trim().min(2).max(50),

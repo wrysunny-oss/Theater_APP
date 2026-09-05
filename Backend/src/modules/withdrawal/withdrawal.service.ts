@@ -5,14 +5,14 @@ import { env } from "../../config.js";
 import { AppError } from "../../lib/http.js";
 import { prisma } from "../../lib/prisma.js";
 import type { WithdrawalListQuery } from "./withdrawal.schema.js";
-import { assertAllowed } from "../safety/safety.service.js";
+import { assertAllowed, assertFreshRiskAssessment } from "../safety/safety.service.js";
 
 type Tx = Prisma.TransactionClient;
 type AuditRequest = Pick<Request, "method" | "path" | "ip" | "header">;
 const cipherKey = createHash("sha256").update(env.WITHDRAW_DATA_SECRET).digest();
 
 /** AES-256-GCM 同时提供保密性和完整性；数据库只保存密文与脱敏展示值。 */
-function encrypt(value: string) {
+export function encrypt(value: string) {
   const iv = randomBytes(12);
   const cipher = createCipheriv("aes-256-gcm", cipherKey, iv);
   const encrypted = Buffer.concat([cipher.update(value, "utf8"), cipher.final()]);
@@ -27,7 +27,7 @@ function decrypt(value: string) {
   return Buffer.concat([decipher.update(Buffer.from(data, "base64")), decipher.final()]).toString("utf8");
 }
 
-function maskAccount(value: string) {
+export function maskAccount(value: string) {
   if (value.length <= 7) return `${value.slice(0, 2)}***${value.slice(-2)}`;
   return `${value.slice(0, 3)}****${value.slice(-4)}`;
 }
@@ -44,9 +44,23 @@ function auditData(operatorId: bigint, action: string, withdrawalId: string, req
 
 export const getConfig = () => prisma.withdrawalConfig.findUniqueOrThrow({ where: { id: 1 } });
 
+/** 只向 App 返回脱敏账号，不提供密文或可逆的完整收款信息。 */
+export async function getPayoutAccount(userId: bigint) {
+  const account = await prisma.payoutAccount.findUnique({ where: { userId }, select: { channel: true, accountMasked: true, createdAt: true, updatedAt: true } });
+  return account ? { bound: true, ...account } : { bound: false };
+}
+
+/** 绑定与换绑都覆盖同一条账户记录，历史提现单仍保留申请时的账户快照。 */
+export async function bindPayoutAccount(userId: bigint, input: { channel: "ALIPAY" | "WECHAT" | "BANK"; account: string; realName: string }) {
+  const encrypted = { channel: input.channel, accountCipher: encrypt(input.account), accountMasked: maskAccount(input.account), realNameCipher: encrypt(input.realName) };
+  const account = await prisma.payoutAccount.upsert({ where: { userId }, create: { userId, ...encrypted }, update: encrypted, select: { channel: true, accountMasked: true, createdAt: true, updatedAt: true } });
+  return { bound: true, ...account };
+}
+
 /** 申请时原子扣减可用金币并增加冻结金币；requestId 保证客户端重试不会重复扣款。 */
-export async function createWithdrawal(userId: bigint, input: { requestId: string; coins: bigint; channel: "ALIPAY" | "WECHAT" | "BANK"; account: string; realName: string }) {
+export async function createWithdrawal(userId: bigint, input: { requestId: string; coins: bigint }) {
   await assertAllowed(userId, "withdrawal");
+  await assertFreshRiskAssessment(userId, "withdrawal");
   return prisma.$transaction(async (tx) => {
     const existing = await tx.withdrawal.findUnique({ where: { requestId: input.requestId } });
     if (existing) {
@@ -54,6 +68,8 @@ export async function createWithdrawal(userId: bigint, input: { requestId: strin
       return existing;
     }
     const config = await tx.withdrawalConfig.findUniqueOrThrow({ where: { id: 1 } });
+    const payoutAccount = await tx.payoutAccount.findUnique({ where: { userId } });
+    if (!payoutAccount) throw new AppError(422, 3212, "请先在设置中绑定收款账户");
     if (!config.enabled) throw new AppError(409, 3202, "提现功能暂未开放");
     if (input.coins < config.minCoins || input.coins > config.maxCoins) throw new AppError(422, 3203, "提现金币不在允许范围内");
     if (input.coins % BigInt(config.coinsPerCent) !== 0n) throw new AppError(422, 3204, "提现金币必须满足兑换比例");
@@ -71,7 +87,7 @@ export async function createWithdrawal(userId: bigint, input: { requestId: strin
     const user = await tx.user.findUniqueOrThrow({ where: { id: userId }, select: { coinBalance: true } });
     const withdrawal = await tx.withdrawal.create({ data: {
       requestId: input.requestId, userId, coins: input.coins, amountCents, feeCents, actualCents: amountCents - feeCents,
-      channel: input.channel, accountCipher: encrypt(input.account), accountMasked: maskAccount(input.account), realNameCipher: encrypt(input.realName),
+      channel: payoutAccount.channel, accountCipher: payoutAccount.accountCipher, accountMasked: payoutAccount.accountMasked, realNameCipher: payoutAccount.realNameCipher,
     } });
     await tx.rewardLedger.create({ data: { userId, type: "WITHDRAW", amount: -input.coins, balanceAfter: user.coinBalance, title: "提现冻结", bizId: `withdraw-freeze:${withdrawal.id}` } });
     return withdrawal;
